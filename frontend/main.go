@@ -1,13 +1,17 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"gameengine2/gameengine"
+)
 
 func main() {
-	if !runUnitTests(createTestGame()) {
+	if !runUnitTests(gameengine.CreateTestGame()) {
 		fmt.Println("Unit tests failed; frontend skipped.")
 		return
 	}
-	game := createFirstGame()
+	game := gameengine.CreateFirstGame()
 	printGameCharacteristics(game)
 	if err := serveFrontend(":8080", game); err != nil {
 		fmt.Printf("Frontend stopped: %v\n", err)

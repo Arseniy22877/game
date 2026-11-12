@@ -1,4 +1,4 @@
-package main
+package gameengine
 
 import (
 	"errors"
@@ -6,14 +6,17 @@ import (
 	"math/rand/v2"
 )
 
+// Возвращает сумму вероятностей набора результатов.
 func getSum(probs []ProbResult) float64 {
 	sum := 0.0
 	for _, prob := range probs {
-		sum += prob.probability
+		sum += prob.Probability
 	}
 	return sum
 }
 
+// Нормализует вероятности так, чтобы их сумма была равна единице.
+// При нулевой сумме возвращает пустой набор.
 func normalize(probs []ProbResult) []ProbResult {
 	sum := getSum(probs)
 	res := make([]ProbResult, 0, len(probs))
@@ -23,22 +26,23 @@ func normalize(probs []ProbResult) []ProbResult {
 
 	for _, prob := range probs {
 		res = append(res, ProbResult{
-			_attractor:  prob._attractor,
-			probability: prob.probability / sum,
+			Attractor:   prob.Attractor,
+			Probability: prob.Probability / sum,
 		})
 	}
 
 	return res
 }
 
+// Разделяет положительные и отрицательные события.
 func split(probs []ProbResult) ([]ProbResult, []ProbResult) { // returns positive, negative probs
 	positive := make([]ProbResult, 0)
 	negative := make([]ProbResult, 0)
 	for _, prob := range probs {
-		if prob.probability <= 0 {
+		if prob.Probability <= 0 {
 			continue
 		}
-		if prob._attractor._eventState._eventData.isPositive {
+		if prob.Attractor.EventState.EventData.IsPositive {
 			positive = append(positive, prob)
 		} else {
 			negative = append(negative, prob)
@@ -48,27 +52,35 @@ func split(probs []ProbResult) ([]ProbResult, []ProbResult) { // returns positiv
 	return positive, negative
 }
 
+// Выбирает один результат случайным пропорционально его вероятности.
 func pick(probs *[]ProbResult) (res ProbResult) {
 	score := rand.Float64()
 	acc := 0.0
 	for i, prob := range *probs {
-		acc += prob.probability
+		acc += prob.Probability
 		if acc >= score {
 			res = prob
 			*probs = append((*probs)[:i], (*probs)[i+1:]...)
 			break
 		}
+
 	}
 	return
 }
 
-func (g *GameState) pickEvents(probs []ProbResult) (res []ProbResult, err error) {
+// Normalize подготавливает вероятности к внешнему использованию.
+func Normalize(probs []ProbResult) []ProbResult {
+	return normalize(probs)
+}
+
+// Рассчитывает количество и случайный набор событий текущего цикла.
+func (g *GameState) PickEvents(probs []ProbResult) (res []ProbResult, err error) {
 	pos, neg := split(probs)
 	ePos := getSum(pos)
 	eNeg := getSum(neg)
 	_eNeg := eNeg
-	if int(math.Round(ePos))+int(math.Round(eNeg)) > g._gameData.maxEventsPerTurn {
-		proportion := float64(g._gameData.maxEventsPerTurn) / (ePos + eNeg)
+	if int(math.Round(ePos))+int(math.Round(eNeg)) > g.GameData.MaxEventsPerTurn {
+		proportion := float64(g.GameData.MaxEventsPerTurn) / (ePos + eNeg)
 		ePos *= proportion
 		eNeg *= proportion
 	}
@@ -76,7 +88,7 @@ func (g *GameState) pickEvents(probs []ProbResult) (res []ProbResult, err error)
 	cNeg := int(math.Round(eNeg))
 	cPos := int(math.Round(ePos))
 
-	if len(neg) >= 1 && cNeg == 0 && _eNeg >= g._gameData.softness {
+	if len(neg) >= 1 && cNeg == 0 && _eNeg >= g.GameData.Softness {
 		cNeg = 1
 	}
 
@@ -86,7 +98,7 @@ func (g *GameState) pickEvents(probs []ProbResult) (res []ProbResult, err error)
 		} else if len(pos) > 0 {
 			cPos++
 		} else {
-			err = errors.New("No probable events at all")
+			err = errors.New("No probable Events at all")
 		}
 	}
 

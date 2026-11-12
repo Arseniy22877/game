@@ -1,4 +1,4 @@
-package main
+package gameengine
 
 func clamp(x float64, min float64, max float64) float64 {
 	if x < min {

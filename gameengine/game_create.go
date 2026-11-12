@@ -1,328 +1,328 @@
-package main
+package gameengine
 
 import "fmt"
 
-func (game *Game) createInstance() GameState {
+func (game *Game) CreateInstance() GameState {
 	state := GameState{
-		_gameData:  game,
-		attributes: make(map[AttributeId]AttributeState),
-		events:     make(map[EventId]EventState),
-		hints:      make(map[HintId]HintState),
-		strategies: make(map[StrategyId]StrategyState),
-		budget: BudgetState{
-			_budgetData: &game.startingBudget,
-			money:       game.startingBudget.initialMoney,
-			qp:          game.startingBudget.initialQp,
+		GameData:   game,
+		Attributes: make(map[AttributeId]AttributeState),
+		Events:     make(map[EventId]EventState),
+		Hints:      make(map[HintId]HintState),
+		Strategies: make(map[StrategyId]StrategyState),
+		Budget: BudgetState{
+			BudgetData: &game.StartingBudget,
+			Money:      game.StartingBudget.InitialMoney,
+			QP:         game.StartingBudget.InitialQP,
 		},
 	}
 
-	for i := range game.basicAttributes {
-		attribute := &game.basicAttributes[i]
-		state.attributes[attribute.id] = AttributeState{
-			_attributeData: attribute,
-			baseValue:      attribute.defaultValue,
-			finalValue:     attribute.defaultValue,
-			status:         AttributeNeutral,
+	for i := range game.BasicAttributes {
+		attribute := &game.BasicAttributes[i]
+		state.Attributes[attribute.ID] = AttributeState{
+			AttributeData: attribute,
+			BaseValue:     attribute.DefaultValue,
+			FinalValue:    attribute.DefaultValue,
+			Status:        AttributeNeutral,
 		}
 	}
-	for i := range game.configurableAttributes {
-		attribute := &game.configurableAttributes[i].GameAttribute
-		state.attributes[attribute.id] = AttributeState{
-			_attributeData: attribute,
-			baseValue:      attribute.defaultValue,
-			finalValue:     attribute.defaultValue,
-			status:         AttributeNeutral,
+	for i := range game.ConfigurableAttributes {
+		attribute := &game.ConfigurableAttributes[i].GameAttribute
+		state.Attributes[attribute.ID] = AttributeState{
+			AttributeData: attribute,
+			BaseValue:     attribute.DefaultValue,
+			FinalValue:    attribute.DefaultValue,
+			Status:        AttributeNeutral,
 		}
 	}
 
-	startingEvents := make(map[EventId]bool, len(game.startingEvents))
-	for _, id := range game.startingEvents {
-		startingEvents[id] = true
+	StartingEvents := make(map[EventId]bool, len(game.StartingEvents))
+	for _, ID := range game.StartingEvents {
+		StartingEvents[ID] = true
 	}
-	for i := range game.events {
-		event := &game.events[i]
-		status := EventLockedStatus
-		if startingEvents[event.id] {
-			status = EventAvailableStatus
+	for i := range game.Events {
+		event := &game.Events[i]
+		Status := EventLockedStatus
+		if StartingEvents[event.ID] {
+			Status = EventAvailableStatus
 		}
-		if event.id == game.openingEvent {
-			status = EventFiredStatus
+		if event.ID == game.OpeningEvent {
+			Status = EventFiredStatus
 		}
-		baseField := Field{
-			weights: copyVector(event.basicParameters.weights),
-			power:   event.basicParameters.power,
+		BaseField := Field{
+			Weights: copyVector(event.BasicParameters.Weights),
+			Power:   event.BasicParameters.Power,
 		}
-		state.events[event.id] = EventState{
-			_eventData: event,
-			baseField:  baseField,
-			finalField: Field{
-				weights: copyVector(baseField.weights),
-				power:   baseField.power,
+		state.Events[event.ID] = EventState{
+			EventData: event,
+			BaseField: BaseField,
+			FinalField: Field{
+				Weights: copyVector(BaseField.Weights),
+				Power:   BaseField.Power,
 			},
-			baseStatus:  status,
-			finalStatus: status,
+			BaseStatus:  Status,
+			FinalStatus: Status,
 		}
 	}
 
-	for i := range game.hints {
-		hint := &game.hints[i]
-		state.hints[hint.id] = HintState{
-			_hintData: hint,
-			status:    HintLockedStatus,
+	for i := range game.Hints {
+		hint := &game.Hints[i]
+		state.Hints[hint.ID] = HintState{
+			HintData: hint,
+			Status:   HintLockedStatus,
 		}
 	}
-	for i := range game.strategies {
-		strategy := &game.strategies[i]
-		state.strategies[strategy.id] = StrategyState{
-			_strategyData: strategy,
-			status:        StrategyLockedStatus,
+	for i := range game.Strategies {
+		strategy := &game.Strategies[i]
+		state.Strategies[strategy.ID] = StrategyState{
+			StrategyData: strategy,
+			Status:       StrategyLockedStatus,
 		}
 	}
 
 	return state
 }
 
-func createTestGame() Game {
+func CreateTestGame() Game {
 	return Game{
-		basicAttributes: []GameAttribute{
+		BasicAttributes: []GameAttribute{
 			{
-				id:           0,
-				defaultValue: 0.5,
-				minValue:     0,
-				maxValue:     1,
-				name:         "Mood",
-				description:  "Current mood",
+				ID:           0,
+				DefaultValue: 0.5,
+				MinValue:     0,
+				MaxValue:     1,
+				Name:         "Mood",
+				Description:  "Current mood",
 			},
 		},
-		configurableAttributes: []ConfigurableAttribute{
+		ConfigurableAttributes: []ConfigurableAttribute{
 			{
 				GameAttribute: GameAttribute{
-					id:           1,
-					defaultValue: 0.5,
-					minValue:     0,
-					maxValue:     1,
-					name:         "Focus",
-					description:  "Current focus",
+					ID:           1,
+					DefaultValue: 0.5,
+					MinValue:     0,
+					MaxValue:     1,
+					Name:         "Focus",
+					Description:  "Current focus",
 				},
-				costPerUnit: 10,
-			},
-			{
-				GameAttribute: GameAttribute{
-					id:           2,
-					defaultValue: 0.5,
-					minValue:     0,
-					maxValue:     1,
-					name:         "Energy",
-					description:  "Available energy",
-				},
-				costPerUnit: 8,
+				CostPerUnit: 10,
 			},
 			{
 				GameAttribute: GameAttribute{
-					id:           3,
-					defaultValue: 0.5,
-					minValue:     0,
-					maxValue:     1,
-					name:         "Luck",
-					description:  "Current luck",
+					ID:           2,
+					DefaultValue: 0.5,
+					MinValue:     0,
+					MaxValue:     1,
+					Name:         "Energy",
+					Description:  "Available energy",
 				},
-				costPerUnit: 6,
+				CostPerUnit: 8,
+			},
+			{
+				GameAttribute: GameAttribute{
+					ID:           3,
+					DefaultValue: 0.5,
+					MinValue:     0,
+					MaxValue:     1,
+					Name:         "Luck",
+					Description:  "Current luck",
+				},
+				CostPerUnit: 6,
 			},
 		},
-		events: []GameEvent{
+		Events: []GameEvent{
 			{
-				id:          0,
-				name:        "Quiet day",
-				description: "Nothing unexpected happens",
-				isPositive:  true,
-				basicParameters: EventParameters{
-					power:   Power{amplitude: 0.4, density: 0.5},
-					weights: Vector{1, 1, 1, 1, 1},
+				ID:          0,
+				Name:        "Quiet day",
+				Description: "Nothing unexpected happens",
+				IsPositive:  true,
+				BasicParameters: EventParameters{
+					Power:   Power{Amplitude: 0.4, Density: 0.5},
+					Weights: Vector{1, 1, 1, 1, 1},
 				},
-				centerPoint:        Vector{0.5, 0.5, 0.5, 0.5, 0.5},
-				strategiesUnlocked: []StrategyId{0},
-				hintsUnlocked:      []HintId{0},
-				eventsUnlocked:     []EventId{3},
+				CenterPoint:        Vector{0.5, 0.5, 0.5, 0.5, 0.5},
+				StrategiesUnlocked: []StrategyId{0},
+				HintsUnlocked:      []HintId{0},
+				EventsUnlocked:     []EventId{3},
 			},
 			{
-				id:          1,
-				name:        "Unexpected problem",
-				description: "A problem appears",
-				isPositive:  false,
-				basicParameters: EventParameters{
-					power:   Power{amplitude: 0.2, density: 0.5},
-					weights: Vector{1, 1, 1, 1, 1},
+				ID:          1,
+				Name:        "Unexpected problem",
+				Description: "A problem appears",
+				IsPositive:  false,
+				BasicParameters: EventParameters{
+					Power:   Power{Amplitude: 0.2, Density: 0.5},
+					Weights: Vector{1, 1, 1, 1, 1},
 				},
-				centerPoint: Vector{0.2, 0.5, 0.5, 0.5, 0.5},
-				budgetChange: BudgetChange{
-					moneyShift: -5,
+				CenterPoint: Vector{0.2, 0.5, 0.5, 0.5, 0.5},
+				BudgetChange: BudgetChange{
+					MoneyShift: -5,
 				},
-				strategiesUnlocked: []StrategyId{1},
-				hintsUnlocked:      []HintId{1},
-				eventsUnlocked:     []EventId{4},
+				StrategiesUnlocked: []StrategyId{1},
+				HintsUnlocked:      []HintId{1},
+				EventsUnlocked:     []EventId{4},
 			},
 			{
-				id:          2,
-				name:        "Good opportunity",
-				description: "A useful opportunity appears",
-				isPositive:  true,
-				basicParameters: EventParameters{
-					power:   Power{amplitude: 0.35, density: 0.6},
-					weights: Vector{1, 1, 1, 1, 1},
+				ID:          2,
+				Name:        "Good opportunity",
+				Description: "A useful opportunity appears",
+				IsPositive:  true,
+				BasicParameters: EventParameters{
+					Power:   Power{Amplitude: 0.35, Density: 0.6},
+					Weights: Vector{1, 1, 1, 1, 1},
 				},
-				centerPoint: Vector{0.8, 0.5, 0.5, 0.7, 0.6},
-				budgetChange: BudgetChange{
-					moneyShift: 8,
-					qpShift:    2,
+				CenterPoint: Vector{0.8, 0.5, 0.5, 0.7, 0.6},
+				BudgetChange: BudgetChange{
+					MoneyShift: 8,
+					QPShift:    2,
 				},
-				strategiesUnlocked: []StrategyId{2},
-				hintsUnlocked:      []HintId{2},
-				eventsUnlocked:     []EventId{5},
+				StrategiesUnlocked: []StrategyId{2},
+				HintsUnlocked:      []HintId{2},
+				EventsUnlocked:     []EventId{5},
 			},
 			{
-				id:          3,
-				name:        "Successful plan",
-				description: "Preparation pays off",
-				isPositive:  true,
-				basicParameters: EventParameters{
-					power:   Power{amplitude: 0.3, density: 0.5},
-					weights: Vector{1, 1, 1, 1, 1},
+				ID:          3,
+				Name:        "Successful plan",
+				Description: "Preparation pays off",
+				IsPositive:  true,
+				BasicParameters: EventParameters{
+					Power:   Power{Amplitude: 0.3, Density: 0.5},
+					Weights: Vector{1, 1, 1, 1, 1},
 				},
-				centerPoint:  Vector{0.7, 0.8, 0.8, 0.7, 0.5},
-				budgetChange: BudgetChange{moneyShift: 12},
+				CenterPoint:  Vector{0.7, 0.8, 0.8, 0.7, 0.5},
+				BudgetChange: BudgetChange{MoneyShift: 12},
 			},
 			{
-				id:          4,
-				name:        "Unexpected expense",
-				description: "An urgent expense is required",
-				isPositive:  false,
-				basicParameters: EventParameters{
-					power:   Power{amplitude: 0.25, density: 0.6},
-					weights: Vector{1, 1, 1, 1, 1},
+				ID:          4,
+				Name:        "Unexpected expense",
+				Description: "An urgent expense is required",
+				IsPositive:  false,
+				BasicParameters: EventParameters{
+					Power:   Power{Amplitude: 0.25, Density: 0.6},
+					Weights: Vector{1, 1, 1, 1, 1},
 				},
-				centerPoint:  Vector{0.3, 0.4, 0.4, 0.3, 0.5},
-				budgetChange: BudgetChange{moneyShift: -12, qpShift: -2},
+				CenterPoint:  Vector{0.3, 0.4, 0.4, 0.3, 0.5},
+				BudgetChange: BudgetChange{MoneyShift: -12, QPShift: -2},
 			},
 			{
-				id:          5,
-				name:        "Major breakthrough",
-				description: "A rare opportunity changes the situation",
-				isPositive:  true,
-				basicParameters: EventParameters{
-					power:   Power{amplitude: 0.2, density: 0.45},
-					weights: Vector{1, 1, 1, 1, 1},
+				ID:          5,
+				Name:        "Major breakthrough",
+				Description: "A rare opportunity changes the situation",
+				IsPositive:  true,
+				BasicParameters: EventParameters{
+					Power:   Power{Amplitude: 0.2, Density: 0.45},
+					Weights: Vector{1, 1, 1, 1, 1},
 				},
-				centerPoint:  Vector{0.9, 0.7, 0.7, 0.8, 0.8},
-				budgetChange: BudgetChange{moneyShift: 20, qpShift: 5},
+				CenterPoint:  Vector{0.9, 0.7, 0.7, 0.8, 0.8},
+				BudgetChange: BudgetChange{MoneyShift: 20, QPShift: 5},
 			},
 		},
-		hints: []Hint{
+		Hints: []Hint{
 			{
-				id:          0,
-				reliability: "high",
-				cost:        5,
-				name:        "Weather forecast",
-				description: "Reveals information about the next event",
-				secret:      "The day will be quiet",
+				ID:          0,
+				Reliability: "high",
+				Cost:        5,
+				Name:        "Weather forecast",
+				Description: "Reveals information about the next event",
+				Secret:      "The day will be quiet",
 			},
 			{
-				id:          1,
-				reliability: "medium",
-				cost:        8,
-				name:        "Risk assessment",
-				description: "Estimates the chance of an unexpected expense",
-				secret:      "The situation is unstable",
+				ID:          1,
+				Reliability: "medium",
+				Cost:        8,
+				Name:        "Risk assessment",
+				Description: "Estimates the chance of an unexpected expense",
+				Secret:      "The situation is unstable",
 			},
 			{
-				id:          2,
-				reliability: "low",
-				cost:        4,
-				name:        "Opportunity radar",
-				description: "Searches for promising opportunities",
-				secret:      "There may be a breakthrough",
+				ID:          2,
+				Reliability: "low",
+				Cost:        4,
+				Name:        "Opportunity radar",
+				Description: "Searches for promising opportunities",
+				Secret:      "There may be a breakthrough",
 			},
 		},
-		strategies: []Strategy{
+		Strategies: []Strategy{
 			{
-				id:          0,
-				name:        "Preparation",
-				description: "Improves the chance of a quiet day",
-				cost:        10,
-				parameterChanges: []EventParametersChange{
+				ID:          0,
+				Name:        "Preparation",
+				Description: "Improves the chance of a quiet day",
+				Cost:        10,
+				ParameterChanges: []EventParametersChange{
 					{
-						eventId: 0,
-						shift: EventParameters{
-							power:   Power{amplitude: 0.2},
-							weights: Vector{0, 0, 0, 0, 0},
+						EventID: 0,
+						Shift: EventParameters{
+							Power:   Power{Amplitude: 0.2},
+							Weights: Vector{0, 0, 0, 0, 0},
 						},
 					},
 				},
 			},
 			{
-				id:          1,
-				name:        "Risk management",
-				description: "Reduces the impact of negative events",
-				cost:        12,
-				parameterChanges: []EventParametersChange{{
-					eventId: 4,
-					shift: EventParameters{
-						power:   Power{amplitude: -0.1},
-						weights: Vector{0, 0, 0, 0, 0},
+				ID:          1,
+				Name:        "Risk management",
+				Description: "Reduces the impact of negative Events",
+				Cost:        12,
+				ParameterChanges: []EventParametersChange{{
+					EventID: 4,
+					Shift: EventParameters{
+						Power:   Power{Amplitude: -0.1},
+						Weights: Vector{0, 0, 0, 0, 0},
 					},
 				}},
 			},
 			{
-				id:          2,
-				name:        "Focused search",
-				description: "Improves the chance of finding opportunities",
-				cost:        14,
-				attributeChanges: []AttributeChange{
-					{attributeId: 2, attributeShift: 0.1},
-					{attributeId: 3, attributeShift: 0.1},
+				ID:          2,
+				Name:        "Focused search",
+				Description: "Improves the chance of finding opportunities",
+				Cost:        14,
+				AttributeChanges: []AttributeChange{
+					{AttributeID: 2, AttributeShift: 0.1},
+					{AttributeID: 3, AttributeShift: 0.1},
 				},
 			},
 		},
-		startingBudget: Budget{
-			initialMoney: 140,
-			maxMoney:     180,
-			initialQp:    30,
+		StartingBudget: Budget{
+			InitialMoney: 140,
+			MaxMoney:     180,
+			InitialQP:    30,
 		},
-		startingEvents:   []EventId{0, 1, 2},
-		openingEvent:     0,
-		maxEventsPerTurn: 2,
-		softness:         0.08,
+		StartingEvents:   []EventId{0, 1, 2},
+		OpeningEvent:     0,
+		MaxEventsPerTurn: 2,
+		Softness:         0.08,
 	}
 }
 
-func createFirstGame() Game {
+func CreateFirstGame() Game {
 	type eventSeed struct {
-		name     string
+		Name     string
 		positive bool
 		center   Vector
-		weights  Vector
-		money    int
-		qp       int
+		Weights  Vector
+		Money    int
+		QP       int
 	}
 
 	game := Game{
-		basicAttributes: []GameAttribute{
-			{id: 0, defaultValue: 0.55, minValue: 0, maxValue: 1, name: "Доверие рынка", description: "Готовность клиентов и инвесторов доверять компании."},
-			{id: 1, defaultValue: 0.50, minValue: 0, maxValue: 1, name: "Репутация ИИ", description: "Общественное восприятие безопасности и пользы искусственного интеллекта."},
-			{id: 2, defaultValue: 0.45, minValue: 0, maxValue: 1, name: "Зрелость продукта", description: "Надежность и готовность основной технологии к эксплуатации."},
-			{id: 3, defaultValue: 0.50, minValue: 0, maxValue: 1, name: "Сила команды", description: "Способность сотрудников быстро решать сложные задачи."},
+		BasicAttributes: []GameAttribute{
+			{ID: 0, DefaultValue: 0.55, MinValue: 0, MaxValue: 1, Name: "Доверие рынка", Description: "Готовность клиентов и инвесторов доверять компании."},
+			{ID: 1, DefaultValue: 0.50, MinValue: 0, MaxValue: 1, Name: "Репутация ИИ", Description: "Общественное восприятие безопасности и пользы искусственного интеллекта."},
+			{ID: 2, DefaultValue: 0.45, MinValue: 0, MaxValue: 1, Name: "Зрелость продукта", Description: "Надежность и готовность основной технологии к эксплуатации."},
+			{ID: 3, DefaultValue: 0.50, MinValue: 0, MaxValue: 1, Name: "Сила команды", Description: "Способность сотрудников быстро решать сложные задачи."},
 		},
-		configurableAttributes: []ConfigurableAttribute{
-			{GameAttribute: GameAttribute{id: 4, defaultValue: 0.50, minValue: 0, maxValue: 1, name: "Исследования", description: "Доля ресурсов, направленная на фундаментальные исследования."}, costPerUnit: 18},
-			{GameAttribute: GameAttribute{id: 5, defaultValue: 0.50, minValue: 0, maxValue: 1, name: "Продажи", description: "Интенсивность коммерческой работы и переговоров."}, costPerUnit: 14},
-			{GameAttribute: GameAttribute{id: 6, defaultValue: 0.50, minValue: 0, maxValue: 1, name: "Безопасность", description: "Расходы на тестирование, контроль доступа и соответствие нормам."}, costPerUnit: 16},
+		ConfigurableAttributes: []ConfigurableAttribute{
+			{GameAttribute: GameAttribute{ID: 4, DefaultValue: 0.50, MinValue: 0, MaxValue: 1, Name: "Исследования", Description: "Доля ресурсов, направленная на фундаментальные исследования."}, CostPerUnit: 18},
+			{GameAttribute: GameAttribute{ID: 5, DefaultValue: 0.50, MinValue: 0, MaxValue: 1, Name: "Продажи", Description: "Интенсивность коммерческой работы и переговоров."}, CostPerUnit: 14},
+			{GameAttribute: GameAttribute{ID: 6, DefaultValue: 0.50, MinValue: 0, MaxValue: 1, Name: "Безопасность", Description: "Расходы на тестирование, контроль доступа и соответствие нормам."}, CostPerUnit: 16},
 		},
-		startingBudget:        Budget{initialMoney: 260, maxMoney: 360, initialQp: 48},
-		startingEvents:        []EventId{0, 1, 2},
-		openingEvent:          0,
-		probabilityStrictness: 0.35,
-		powerRestoreRate:      0.08,
-		maxEventsPerTurn:      4,
-		softness:              0.06,
+		StartingBudget:        Budget{InitialMoney: 260, MaxMoney: 360, InitialQP: 48},
+		StartingEvents:        []EventId{0, 1, 2},
+		OpeningEvent:          0,
+		ProbabilityStrictness: 0.35,
+		PowerRestoreRate:      0.08,
+		MaxEventsPerTurn:      4,
+		Softness:              0.06,
 	}
 
 	seeds := []eventSeed{
@@ -437,24 +437,24 @@ func createFirstGame() Game {
 		case 23, 26, 29:
 			next = append(next, EventId(i+3))
 		}
-		game.events = append(game.events, GameEvent{
-			id: EventId(i), name: seed.name, description: eventClues[i], isPositive: seed.positive,
-			basicParameters: EventParameters{power: Power{amplitude: 0.28, density: 0.42}, weights: makeNuancedWeights(seed.weights, i)},
-			centerPoint:     seed.center, eventsUnlocked: next,
-			attributeChanges: eventAttributeChanges(seed.positive, i),
-			budgetChange:     BudgetChange{moneyShift: seed.money, qpShift: seed.qp},
-			hintsUnlocked:    []HintId{HintId(i % 15)}, strategiesUnlocked: []StrategyId{StrategyId(i % 15)},
+		game.Events = append(game.Events, GameEvent{
+			ID: EventId(i), Name: seed.Name, Description: eventClues[i], IsPositive: seed.positive,
+			BasicParameters: EventParameters{Power: Power{Amplitude: 0.28, Density: 0.42}, Weights: makeNuancedWeights(seed.Weights, i)},
+			CenterPoint:     seed.center, EventsUnlocked: next,
+			AttributeChanges: eventAttributeChanges(seed.positive, i),
+			BudgetChange:     BudgetChange{MoneyShift: seed.Money, QPShift: seed.QP},
+			HintsUnlocked:    []HintId{HintId(i % 15)}, StrategiesUnlocked: []StrategyId{StrategyId(i % 15)},
 		})
 	}
 
 	type ambientSeed struct {
-		name        string
-		description string
+		Name        string
+		Description string
 		center      Vector
-		weights     Vector
+		Weights     Vector
 		positive    bool
-		money       int
-		qp          int
+		Money       int
+		QP          int
 	}
 	ambient := []ambientSeed{
 		{"Отложенная индексация документов", "Поиск по архиву замедлился после обновления, хотя сами ответы модели не изменились. Инженер заметил рост очереди только в часы пик. Резервный индекс еще не пересобирали.", Vector{0.52, 0.50, 0.58, 0.50, 0.45, 0.40, 0.55, 0.50}, Vector{0.2, 0.5, 1, 0, 0.5, 0, 0, 0}, false, -7, 0},
@@ -483,8 +483,8 @@ func createFirstGame() Game {
 		{"Разрыв в цепочке поставки", "Один внешний пакет исчез из зеркала репозитория. Сборка использовала локальный кэш, но новый сервер его не имеет. Разработчики ищут разрешенную замену.", Vector{0.45, 0.40, 0.48, 0.52, 0.55, 0.30, 0.42, 0.66}, Vector{0.5, 0.5, 1, 0.5, 0.5, 0, 0, 1}, false, -15, -1},
 	}
 	tail := []struct {
-		name        string
-		description string
+		Name        string
+		Description string
 		positive    bool
 	}{
 		{"Письмо от отраслевого аналитика", "Аналитик попросил не презентацию, а выгрузку ошибок по сегментам. Он обещал упомянуть компанию только после проверки цифр. Ответ нужен до конца недели.", true},
@@ -521,33 +521,33 @@ func createFirstGame() Game {
 	}
 	for i, item := range tail {
 		ambient = append(ambient, ambientSeed{
-			name: item.name, description: item.description,
+			Name: item.Name, Description: item.Description,
 			center:   Vector{0.45 + float64(i%5)*0.08, 0.40 + float64(i%4)*0.08, 0.48 + float64(i%3)*0.10, 0.50 + float64((i+1)%4)*0.08, 0.35 + float64(i%5)*0.10, 0.30 + float64((i+2)%5)*0.12, 0.45 + float64(i%4)*0.10, 0.45 + float64((i+3)%4)*0.08},
-			weights:  makeNuancedWeights(Vector{1, 0.5, 1, 0, 0.5, 1, 0.2, 0}, i+20),
-			positive: item.positive, money: -6 + i%5*5, qp: (i % 3) - 1,
+			Weights:  makeNuancedWeights(Vector{1, 0.5, 1, 0, 0.5, 1, 0.2, 0}, i+20),
+			positive: item.positive, Money: -6 + i%5*5, QP: (i % 3) - 1,
 		})
 	}
 	for i, event := range ambient {
-		id := EventId(55 + i)
-		game.events = append(game.events, GameEvent{
-			id: id, name: event.name, description: event.description, isPositive: event.positive,
-			basicParameters: EventParameters{power: Power{amplitude: 0.22, density: 0.48}, weights: event.weights},
-			centerPoint:     event.center, attributeChanges: eventAttributeChanges(event.positive, i+40),
-			budgetChange: BudgetChange{moneyShift: event.money, qpShift: event.qp},
+		ID := EventId(55 + i)
+		game.Events = append(game.Events, GameEvent{
+			ID: ID, Name: event.Name, Description: event.Description, IsPositive: event.positive,
+			BasicParameters: EventParameters{Power: Power{Amplitude: 0.22, Density: 0.48}, Weights: event.Weights},
+			CenterPoint:     event.center, AttributeChanges: eventAttributeChanges(event.positive, i+40),
+			BudgetChange: BudgetChange{MoneyShift: event.Money, QPShift: event.QP},
 		})
 		if i < 25 {
-			game.startingEvents = append(game.startingEvents, id)
+			game.StartingEvents = append(game.StartingEvents, ID)
 		}
 	}
 
 	strategyOnly := []struct {
 		strategy StrategyId
-		name     string
+		Name     string
 		positive bool
 		center   Vector
-		weights  Vector
-		money    int
-		qp       int
+		Weights  Vector
+		Money    int
+		QP       int
 		clue     string
 	}{
 		{0, "Открытие исследовательского гранта", true, Vector{0.72, 0.70, 0.62, 0.68, 0.90, 0.35, 0.60, 0.55}, Vector{1, 1, 0.5, 1, 1, 0, 0.2, 0}, 38, 7, "Рецензент отметил не сам результат, а повторяемость эксперимента и аккуратность отрицательных выводов."},
@@ -565,106 +565,106 @@ func createFirstGame() Game {
 		{14, "Единый контур наблюдаемости", true, Vector{0.78, 0.78, 0.80, 0.68, 0.62, 0.70, 0.88, 0.50}, Vector{1, 1, 1, 0.5, 0.5, 0.5, 1, 0}, 48, 10, "Три команды увидели одну и ту же причину сбоя по общей временной метке, хотя раньше спорили о версиях."},
 	}
 	for i, branch := range strategyOnly {
-		description := fmt.Sprintf("Событие «%s» возможно только при действующей стратегии, но внешне выглядит как случайная удача или неприятность. %s В журнале осталась отметка «решение принято заранее», хотя автор записи не указан. Сопоставление этой строки с результатами подсказок позволяет понять, какую цену имеет выбранный курс.", branch.name, branch.clue)
-		game.events = append(game.events, GameEvent{
-			id: EventId(42 + i), name: branch.name, description: description, isPositive: branch.positive,
-			basicParameters: EventParameters{power: Power{amplitude: 0.30, density: 0.40}, weights: branch.weights},
-			centerPoint:     branch.center, attributeChanges: eventAttributeChanges(branch.positive, i+80),
-			budgetChange: BudgetChange{moneyShift: branch.money, qpShift: branch.qp},
+		Description := fmt.Sprintf("Событие «%s» возможно только при действующей стратегии, но внешне выглядит как случайная удача или неприятность. %s В журнале осталась отметка «решение принято заранее», хотя автор записи не указан. Сопоставление этой строки с результатами подсказок позволяет понять, какую цену имеет выбранный курс.", branch.Name, branch.clue)
+		game.Events = append(game.Events, GameEvent{
+			ID: EventId(42 + i), Name: branch.Name, Description: Description, IsPositive: branch.positive,
+			BasicParameters: EventParameters{Power: Power{Amplitude: 0.30, Density: 0.40}, Weights: branch.Weights},
+			CenterPoint:     branch.center, AttributeChanges: eventAttributeChanges(branch.positive, i+80),
+			BudgetChange: BudgetChange{MoneyShift: branch.Money, QPShift: branch.QP},
 		})
 	}
 
 	for i := 0; i < 15; i++ {
-		game.hints = append(game.hints, Hint{
-			id: HintId(i), reliability: []string{"высокая", "средняя", "низкая"}[i%3], cost: 5 + i%4*3,
-			name:        []string{"Анализ рынка", "Проверка качества", "Аудит данных", "Интервью клиентов", "Тест безопасности", "Карта конкурентов", "Исследование команды", "Анализ затрат", "Мониторинг регулятора", "Красная команда", "Исследование доверия", "Анализ инфраструктуры", "Проверка энергопотребления", "Этическая экспертиза", "Прогноз спроса"}[i],
-			description: "Исследование, которое можно провести перед выбором следующего курса компании.",
-			secret:      "Сырые наблюдения: показатель " + []string{"рынка", "качества", "данных", "клиентов", "безопасности", "конкуренции", "команды", "затрат", "регуляторных рисков", "атак", "доверия", "мощностей", "энергии", "этики", "спроса"}[i] + " особенно сильно меняет вероятность событий с соответствующим ненулевым весом; ищите повторяющийся порог 0.7.",
+		game.Hints = append(game.Hints, Hint{
+			ID: HintId(i), Reliability: []string{"высокая", "средняя", "низкая"}[i%3], Cost: 5 + i%4*3,
+			Name:        []string{"Анализ рынка", "Проверка качества", "Аудит данных", "Интервью клиентов", "Тест безопасности", "Карта конкурентов", "Исследование команды", "Анализ затрат", "Мониторинг регулятора", "Красная команда", "Исследование доверия", "Анализ инфраструктуры", "Проверка энергопотребления", "Этическая экспертиза", "Прогноз спроса"}[i],
+			Description: "Исследование, которое можно провести перед выбором следующего курса компании.",
+			Secret:      "Сырые наблюдения: показатель " + []string{"рынка", "качества", "данных", "клиентов", "безопасности", "конкуренции", "команды", "затрат", "регуляторных рисков", "атак", "доверия", "мощностей", "энергии", "этики", "спроса"}[i] + " особенно сильно меняет вероятность событий с соответствующим ненулевым весом; ищите повторяющийся порог 0.7.",
 		})
 	}
 
 	strategyNames := []string{"Портфель исследований", "Контроль качества", "Безопасность по умолчанию", "Клиентская лаборатория", "Сильный найм", "Партнерская сеть", "Прозрачная отчетность", "Резерв вычислений", "Красная команда", "Энергоэффективность", "Юридический штаб", "Фонд доверия", "Международная экспансия", "Этический комитет", "Платформа наблюдаемости"}
-	for i, name := range strategyNames {
+	for i, Name := range strategyNames {
 		eventID := EventId((i * 3) % len(seeds))
-		shift := Vector{0, 0, 0, 0, 0, 0, 0, 0}
-		shift[(i+1)%7] = 0.08
-		game.strategies = append(game.strategies, Strategy{
-			id: StrategyId(i), name: name,
-			description:      "Постоянная стратегия управления ИИ-компанией; эффект исчезает при отключении.",
-			cost:             9 + i%4*4,
-			parameterChanges: []EventParametersChange{{eventId: eventID, shift: EventParameters{power: Power{amplitude: 0.05}, weights: Vector{0, 0, 0, 0, 0, 0, 0, 0}}}},
-			attributeChanges: []AttributeChange{{attributeId: AttributeId((i % 3) + 4), attributeShift: shift[(i+1)%7]}},
-			eventsUnlocked:   []EventId{EventId((i + 15) % 40)},
+		Shift := Vector{0, 0, 0, 0, 0, 0, 0, 0}
+		Shift[(i+1)%7] = 0.08
+		game.Strategies = append(game.Strategies, Strategy{
+			ID: StrategyId(i), Name: Name,
+			Description:      "Постоянная стратегия управления ИИ-компанией; эффект исчезает при отключении.",
+			Cost:             9 + i%4*4,
+			ParameterChanges: []EventParametersChange{{EventID: eventID, Shift: EventParameters{Power: Power{Amplitude: 0.05}, Weights: Vector{0, 0, 0, 0, 0, 0, 0, 0}}}},
+			AttributeChanges: []AttributeChange{{AttributeID: AttributeId((i % 3) + 4), AttributeShift: Shift[(i+1)%7]}},
+			EventsUnlocked:   []EventId{EventId((i + 15) % 40)},
 		})
 	}
-	game.strategies[2].eventsUnlocked = []EventId{40}
-	game.strategies[8].eventsUnlocked = []EventId{41}
+	game.Strategies[2].EventsUnlocked = []EventId{40}
+	game.Strategies[8].EventsUnlocked = []EventId{41}
 	for i, branch := range strategyOnly {
-		game.strategies[branch.strategy].eventsUnlocked = []EventId{EventId(42 + i)}
+		game.Strategies[branch.strategy].EventsUnlocked = []EventId{EventId(42 + i)}
 	}
 	setSparseEventBudgets(&game)
 	return game
 }
 
 func makeNuancedWeights(source Vector, eventIndex int) Vector {
-	weights := copyVector(source)
-	for i, weight := range weights {
+	Weights := copyVector(source)
+	for i, weight := range Weights {
 		if weight == 1 && (eventIndex+i)%4 == 1 {
-			weights[i] = 0.5
+			Weights[i] = 0.5
 		} else if weight == 1 && (eventIndex+i)%4 == 2 {
-			weights[i] = 0.2
+			Weights[i] = 0.2
 		}
 	}
-	return weights
+	return Weights
 }
 
 func eventAttributeChanges(positive bool, eventIndex int) []AttributeChange {
 	first := AttributeId(eventIndex % 4)
 	second := AttributeId((eventIndex/2 + 1) % 4)
-	shift := 0.045 + float64(eventIndex%4)*0.01
+	Shift := 0.045 + float64(eventIndex%4)*0.01
 	if !positive {
-		shift = -shift - 0.01
+		Shift = -Shift - 0.01
 	}
 	if first == second {
-		return []AttributeChange{{attributeId: first, attributeShift: shift}}
+		return []AttributeChange{{AttributeID: first, AttributeShift: Shift}}
 	}
 	return []AttributeChange{
-		{attributeId: first, attributeShift: shift},
-		{attributeId: second, attributeShift: shift * 0.65},
+		{AttributeID: first, AttributeShift: Shift},
+		{AttributeID: second, AttributeShift: Shift * 0.65},
 	}
 }
 
 func setSparseEventBudgets(game *Game) {
-	for i := range game.events {
-		game.events[i].budgetChange = BudgetChange{}
+	for i := range game.Events {
+		game.Events[i].BudgetChange = BudgetChange{}
 	}
 
 	effects := map[EventId]BudgetChange{
-		5:   {moneyShift: 24, qpShift: 2},
-		14:  {moneyShift: 38, qpShift: 4},
-		23:  {moneyShift: -28, qpShift: -2},
-		40:  {moneyShift: 46, qpShift: 5},
-		42:  {moneyShift: 32, qpShift: 3},
-		51:  {moneyShift: -36, qpShift: -3},
-		60:  {moneyShift: 18, qpShift: 1},
-		75:  {moneyShift: -22, qpShift: -1},
-		90:  {moneyShift: 27, qpShift: 2},
-		109: {moneyShift: -19, qpShift: -1},
+		5:   {MoneyShift: 24, QPShift: 2},
+		14:  {MoneyShift: 38, QPShift: 4},
+		23:  {MoneyShift: -28, QPShift: -2},
+		40:  {MoneyShift: 46, QPShift: 5},
+		42:  {MoneyShift: 32, QPShift: 3},
+		51:  {MoneyShift: -36, QPShift: -3},
+		60:  {MoneyShift: 18, QPShift: 1},
+		75:  {MoneyShift: -22, QPShift: -1},
+		90:  {MoneyShift: 27, QPShift: 2},
+		109: {MoneyShift: -19, QPShift: -1},
 	}
 	for eventID, change := range effects {
-		event, ok := gameEventByID(game.events, eventID)
+		event, ok := gameEventByID(game.Events, eventID)
 		if !ok {
 			continue
 		}
-		event.budgetChange = change
-		event.description += budgetDescription(change)
+		event.BudgetChange = change
+		event.Description += budgetDescription(change)
 	}
 }
 
-func gameEventByID(events []GameEvent, id EventId) (*GameEvent, bool) {
-	for i := range events {
-		if events[i].id == id {
-			return &events[i], true
+func gameEventByID(Events []GameEvent, ID EventId) (*GameEvent, bool) {
+	for i := range Events {
+		if Events[i].ID == ID {
+			return &Events[i], true
 		}
 	}
 	return nil, false
@@ -672,17 +672,17 @@ func gameEventByID(events []GameEvent, id EventId) (*GameEvent, bool) {
 
 func budgetDescription(change BudgetChange) string {
 	switch {
-	case change.moneyShift > 0 && change.qpShift > 0:
-		return fmt.Sprintf(" Финансовый результат события: компания получает %d кредитов и %d очков качества.", change.moneyShift, change.qpShift)
-	case change.moneyShift > 0:
-		return fmt.Sprintf(" Финансовый результат события: компания получает %d кредитов.", change.moneyShift)
-	case change.moneyShift < 0 && change.qpShift < 0:
-		return fmt.Sprintf(" Цена ошибки: компания теряет %d кредитов и %d очков качества.", -change.moneyShift, -change.qpShift)
-	case change.moneyShift < 0:
-		return fmt.Sprintf(" Цена ошибки: компания теряет %d кредитов.", -change.moneyShift)
-	case change.qpShift > 0:
-		return fmt.Sprintf(" Итог для исследовательского бюджета: получено %d очков качества.", change.qpShift)
+	case change.MoneyShift > 0 && change.QPShift > 0:
+		return fmt.Sprintf(" Финансовый результат события: компания получает %d кредитов и %d очков качества.", change.MoneyShift, change.QPShift)
+	case change.MoneyShift > 0:
+		return fmt.Sprintf(" Финансовый результат события: компания получает %d кредитов.", change.MoneyShift)
+	case change.MoneyShift < 0 && change.QPShift < 0:
+		return fmt.Sprintf(" Цена ошибки: компания теряет %d кредитов и %d очков качества.", -change.MoneyShift, -change.QPShift)
+	case change.MoneyShift < 0:
+		return fmt.Sprintf(" Цена ошибки: компания теряет %d кредитов.", -change.MoneyShift)
+	case change.QPShift > 0:
+		return fmt.Sprintf(" Итог для исследовательского бюджета: получено %d очков качества.", change.QPShift)
 	default:
-		return fmt.Sprintf(" Итог для исследовательского бюджета: потеряно %d очков качества.", -change.qpShift)
+		return fmt.Sprintf(" Итог для исследовательского бюджета: потеряно %d очков качества.", -change.QPShift)
 	}
 }
