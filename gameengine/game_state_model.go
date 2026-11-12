@@ -78,6 +78,7 @@ type BudgetState struct {
 // Изменяемое состояние партии.
 // Pending-поля хранят выбор игрока между стадиями API.
 type GameState struct {
+	ID                string
 	GameData          *Game
 	Attributes        map[AttributeId]AttributeState
 	Events            map[EventId]EventState

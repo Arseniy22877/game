@@ -1,6 +1,35 @@
 package gameengine
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
+
+var (
+	gameFactoriesMu sync.RWMutex
+	gameFactories   = make(map[string]func() Game)
+)
+
+// RegisterGame adds a named game factory to the instance registry.
+func RegisterGame(id string, factory func() Game) {
+	gameFactoriesMu.Lock()
+	defer gameFactoriesMu.Unlock()
+	gameFactories[id] = factory
+}
+
+// GetGameInstance creates a fresh state for a registered game ID.
+func GetGameInstance(id string) (GameState, error) {
+	gameFactoriesMu.RLock()
+	factory, ok := gameFactories[id]
+	gameFactoriesMu.RUnlock()
+	if !ok {
+		return GameState{}, fmt.Errorf("unknown game id: %s", id)
+	}
+	game := factory()
+	state := game.CreateInstance()
+	state.ID = id
+	return state, nil
+}
 
 // Передаёт значения настраиваемых атрибутов в текущий выбор цикла.
 // Значения проверяются, но применяются к состоянию только в CalculateState.
