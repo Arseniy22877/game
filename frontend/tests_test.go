@@ -9,13 +9,13 @@ import (
 )
 
 func TestGameStateSystems(t *testing.T) {
-	if !runUnitTests(gameengine.CreateTestGame()) {
+	if !runUnitTests(CreateTestGame()) {
 		t.Fail()
 	}
 }
 
 func TestAttributeCostUsesSelectedValue(t *testing.T) {
-	game := gameengine.CreateFirstGame()
+	game := CreateFirstGame()
 	state := game.CreateInstance()
 	zero := []gameengine.AttributeChange{
 		{AttributeID: 4, AttributeShift: 0},
@@ -39,7 +39,7 @@ func TestAttributeCostUsesSelectedValue(t *testing.T) {
 }
 
 func TestStrategyAttributeEffectsStayInRange(t *testing.T) {
-	game := gameengine.CreateFirstGame()
+	game := CreateFirstGame()
 	state := game.CreateInstance()
 	if err := state.UnlockStrategies([]gameengine.StrategyId{2}); err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestStrategyAttributeEffectsStayInRange(t *testing.T) {
 }
 
 func TestEventBudgetChangesAreSparseAndDocumented(t *testing.T) {
-	game := gameengine.CreateFirstGame()
+	game := CreateFirstGame()
 	changed := 0
 	for _, event := range game.Events {
 		change := event.BudgetChange
@@ -76,7 +76,7 @@ func TestEventBudgetChangesAreSparseAndDocumented(t *testing.T) {
 }
 
 func TestFirstGameHasPlayableBranches(t *testing.T) {
-	game := gameengine.CreateFirstGame()
+	game := CreateFirstGame()
 	if len(game.Events) != 110 || len(game.Hints) != 15 || len(game.Strategies) != 15 {
 		t.Fatalf("unexpected first game size: Events=%d Hints=%d Strategies=%d", len(game.Events), len(game.Hints), len(game.Strategies))
 	}

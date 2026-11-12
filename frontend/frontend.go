@@ -58,6 +58,7 @@ type frontendEvent struct {
 }
 
 type frontendState struct {
+	ID         string              `json:"id"`
 	Cycle      int                 `json:"cycle"`
 	Money      int                 `json:"money"`
 	MaxMoney   int                 `json:"maxMoney"`
@@ -80,14 +81,15 @@ type cycleRequest struct {
 	Cost       int   `json:"cost"`
 }
 
-func newFrontendServer(game gameengine.Game) *frontendServer {
-	return &frontendServer{game: game, state: game.CreateInstance()}
+func newFrontendServer(state gameengine.GameState) *frontendServer {
+	return &frontendServer{game: *state.GameData, state: state}
 }
 
 func (s *frontendServer) snapshot() (frontendState, error) {
 	s.state.CalculateFinals()
 
 	result := frontendState{
+		ID:         s.state.ID,
 		Cycle:      s.state.Iteration,
 		Money:      s.state.Budget.Money,
 		MaxMoney:   s.state.Budget.BudgetData.MaxMoney,
@@ -230,13 +232,15 @@ func (s *frontendServer) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
+	gameID := s.state.ID
 	s.state = s.game.CreateInstance()
+	s.state.ID = gameID
 	s.mu.Unlock()
 	s.writeState(w)
 }
 
-func serveFrontend(addr string, game gameengine.Game) error {
-	server := newFrontendServer(game)
+func serveFrontend(addr string, state gameengine.GameState) error {
+	server := newFrontendServer(state)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/state", server.handleState)
 	mux.HandleFunc("/api/cycle", server.handleCycle)

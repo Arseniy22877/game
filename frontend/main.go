@@ -7,13 +7,18 @@ import (
 )
 
 func main() {
-	if !runUnitTests(gameengine.CreateTestGame()) {
+	if !runUnitTests(CreateTestGame()) {
 		fmt.Println("Unit tests failed; frontend skipped.")
 		return
 	}
-	game := gameengine.CreateFirstGame()
+	state, err := gameengine.GetGameInstance("first")
+	if err != nil {
+		fmt.Printf("Game startup failed: %v\n", err)
+		return
+	}
+	game := *state.GameData
 	printGameCharacteristics(game)
-	if err := serveFrontend(":8080", game); err != nil {
+	if err := serveFrontend(":8080", state); err != nil {
 		fmt.Printf("Frontend stopped: %v\n", err)
 	}
 }
