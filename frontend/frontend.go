@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sync"
 
-	"gameengine2/gameengine"
+	"github.com/Arseniy22877/game/gameengine"
 )
 
 //go:embed web/index.html web/app.css web/app.js

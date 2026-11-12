@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"gameengine2/gameengine"
+	"github.com/Arseniy22877/game/gameengine"
 )
 
 func runCycle(state *gameengine.GameState, Attributes []gameengine.AttributeChange, Strategies []gameengine.StrategyId, Hints []gameengine.HintId) error {

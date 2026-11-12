@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gameengine2/gameengine"
+	"github.com/Arseniy22877/game/gameengine"
 )
 
 func TestGameStateSystems(t *testing.T) {
