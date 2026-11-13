@@ -7,7 +7,7 @@ type AttributeChoice struct {
 
 type DecisionData struct {
 	why         string // Почему именно такое решение
-	alternative string // Почему именно такое решение
+	alternative string // Какое могло быть другое
 	risks       string // Какие риски с ним связаны
 	correction  string // Какие изменения в решении могли бы быть, если бы это была не игра а реальная жизнь
 }
