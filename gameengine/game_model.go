@@ -114,7 +114,7 @@ type BudgetChange struct {
 	QPShift    int
 }
 
-// Полное описание игры, из которого создаётся GameState.
+// Полное описание игры, из которого создаётся GameState. Это один сценарий.
 type Game struct {
 	BasicAttributes        []GameAttribute
 	ConfigurableAttributes []ConfigurableAttribute
