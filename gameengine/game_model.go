@@ -80,6 +80,7 @@ type GameEvent struct {
 	ID          EventId
 	Name        string
 	Description string
+	ImageURL    string
 	IsPositive  bool
 
 	// Положение события и его базовые параметры в пространстве состояний.

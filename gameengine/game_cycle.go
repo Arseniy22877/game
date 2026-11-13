@@ -16,6 +16,7 @@ var (
 	ErrInvalidHintId            = errors.New("Invalid Hint Id")
 	ErrHintAccessNotAllowed     = errors.New("Trying to access locked hint")
 	ErrInsufficientBudget       = errors.New("Insufficient Budget")
+	ErrInsufficientQP           = errors.New("Insufficient QP")
 )
 
 // Применяет изменение атрибута к постоянной части состояния.

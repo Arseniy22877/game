@@ -2,6 +2,9 @@ package gameengine
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -29,6 +32,33 @@ func GetGameInstance(id string) (GameState, error) {
 	state := game.CreateInstance()
 	state.ID = id
 	return state, nil
+}
+
+// LoadGames загружает все JSON-сценарии из папки scenarios и регистрирует их
+// по имени файла без расширения.
+func LoadGames() error {
+	entries, err := os.ReadDir("scenarios")
+	if err != nil {
+		return fmt.Errorf("read scenarios directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".json" {
+			continue
+		}
+
+		path := filepath.Join("scenarios", entry.Name())
+		game, err := CreateGameJSON(path)
+		if err != nil {
+			return err
+		}
+		id := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		registeredGame := game
+		RegisterGame(id, func() Game {
+			return registeredGame
+		})
+	}
+	return nil
 }
 
 // Передаёт значения настраиваемых атрибутов в текущий выбор цикла.
@@ -81,15 +111,19 @@ func (g *GameState) PassHints(ids []int) error {
 
 // Применяет выбор цикла, списывает его стоимость и пересчитывает итоговое поле.
 func (g *GameState) CalculateState() error {
-	calculatedCost := CycleBaseCost + g.AttributeCost(g.PendingAttributes)
+	moneyCost := CycleBaseCost + g.AttributeCost(g.PendingAttributes)
 	for _, strategyID := range g.PendingStrategies {
-		calculatedCost += g.Strategies[strategyID].StrategyData.Cost
+		moneyCost += g.Strategies[strategyID].StrategyData.Cost
 	}
+	qpCost := 0
 	for _, hintID := range g.PendingHints {
-		calculatedCost += g.Hints[hintID].HintData.Cost
+		qpCost += g.Hints[hintID].HintData.Cost
 	}
-	if calculatedCost > g.Budget.Money {
+	if moneyCost > g.Budget.Money {
 		return ErrInsufficientBudget
+	}
+	if qpCost > g.Budget.QP {
+		return ErrInsufficientQP
 	}
 
 	if err := g.UseAttributes(g.PendingAttributes); err != nil {
@@ -101,7 +135,7 @@ func (g *GameState) CalculateState() error {
 	if err := g.UseHints(g.PendingHints); err != nil {
 		return err
 	}
-	Cost := BudgetChange{MoneyShift: -calculatedCost}
+	Cost := BudgetChange{MoneyShift: -moneyCost, QPShift: -qpCost}
 	Cost.Apply(g)
 	err := g.CalculateFinals()
 	g.PendingAttributes = nil

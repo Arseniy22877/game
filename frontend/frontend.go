@@ -53,6 +53,7 @@ type frontendEvent struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	ImageURL    string `json:"imageUrl,omitempty"`
 	Positive    bool   `json:"positive"`
 	Status      string `json:"status"`
 }
@@ -149,6 +150,7 @@ func (s *frontendServer) snapshot() (frontendState, error) {
 		if state.BaseStatus == gameengine.EventFiredStatus {
 			result.NewEvents = append(result.NewEvents, frontendEvent{
 				ID: int(event.ID), Name: event.Name, Description: event.Description,
+				ImageURL: event.ImageURL,
 				Positive: event.IsPositive, Status: "fired",
 			})
 			continue
@@ -156,6 +158,7 @@ func (s *frontendServer) snapshot() (frontendState, error) {
 		if state.BaseStatus == gameengine.EventExtinguishedStatus {
 			result.History = append(result.History, frontendEvent{
 				ID: int(event.ID), Name: event.Name, Description: event.Description,
+				ImageURL: event.ImageURL,
 				Positive: event.IsPositive, Status: "extinguished",
 			})
 		}

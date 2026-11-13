@@ -34,8 +34,13 @@ function projectedMoney() {
   let cost = BASE_COST;
   state.attributes.forEach((attribute) => { cost += Math.round((values.get(attribute.id) ?? attribute.value) * attribute.costPerUnit); });
   state.strategies.forEach((item) => { if (selectedStrategies.has(item.id)) cost += item.cost; });
-  state.hints.forEach((item) => { if (selectedHints.has(item.id)) cost += item.cost; });
   return state.money - cost;
+}
+
+function projectedQP() {
+  let cost = 0;
+  state.hints.forEach((item) => { if (selectedHints.has(item.id)) cost += item.cost; });
+  return state.qp - cost;
 }
 
 function renderAttributes() {
@@ -66,7 +71,8 @@ function choiceMarkup(item, kind) {
   const set = kind === 'strategy' ? selectedStrategies : selectedHints;
   const checked = set.has(item.id);
   const extra = kind === 'hint' ? `<span class="choice-cost">${item.reliability} надёжность</span>${item.secret ? `<span class="hint-secret">${esc(item.secret)}</span>` : ''}` : '';
-  return `<label class="choice ${checked ? 'selected' : ''} ${unlocked ? '' : 'locked'}"><input type="${kind === 'strategy' ? 'checkbox' : 'checkbox'}" data-kind="${kind}" value="${item.id}" ${checked ? 'checked' : ''} ${unlocked ? '' : 'disabled'}><span class="choice-title">${esc(item.name)}<span class="choice-cost">−${item.cost}</span></span><span class="choice-description">${esc(item.description)}</span>${extra}</label>`;
+  const costLabel = kind === 'hint' ? `${item.cost} QP` : `${item.cost} кредитов`;
+  return `<label class="choice ${checked ? 'selected' : ''} ${unlocked ? '' : 'locked'}"><input type="${kind === 'strategy' ? 'checkbox' : 'checkbox'}" data-kind="${kind}" value="${item.id}" ${checked ? 'checked' : ''} ${unlocked ? '' : 'disabled'}><span class="choice-title">${esc(item.name)}<span class="choice-cost">−${costLabel}</span></span><span class="choice-description">${esc(item.description)}</span>${extra}</label>`;
 }
 
 function renderEvents() {
@@ -75,7 +81,8 @@ function renderEvents() {
 }
 
 function eventMarkup(event, status) {
-  return `<article class="event ${event.positive ? 'good' : 'bad'}"><div class="event-top"><span>${event.positive ? '✦' : '△'} ${esc(event.name)}</span><span class="event-status">${status}</span></div><p class="event-description">${esc(event.description)}</p></article>`;
+  const image = event.imageUrl ? `<img class="event-image" src="${esc(event.imageUrl)}" alt="">` : '';
+  return `<article class="event ${event.positive ? 'good' : 'bad'}">${image}<div class="event-top"><span>${event.positive ? '✦' : '△'} ${esc(event.name)}</span><span class="event-status">${status}</span></div><p class="event-description">${esc(event.description)}</p></article>`;
 }
 
 function updateCost() {
@@ -83,10 +90,10 @@ function updateCost() {
   state.attributes.forEach((item) => { attributes += Math.round((values.get(item.id) ?? item.value) * item.costPerUnit); });
   const strategies = [...selectedStrategies].reduce((sum, id) => sum + state.strategies.find((item) => item.id === id).cost, 0);
   const hints = [...selectedHints].reduce((sum, id) => sum + state.hints.find((item) => item.id === id).cost, 0);
-  $('attribute-cost').textContent = money(attributes); $('strategy-cost').textContent = money(strategies); $('hint-cost').textContent = money(hints);
-  const total = BASE_COST + attributes + strategies + hints;
+  $('attribute-cost').textContent = money(attributes); $('strategy-cost').textContent = money(strategies); $('hint-cost').textContent = `${hints} QP`;
+  const total = BASE_COST + attributes + strategies;
   $('total-cost').textContent = money(total);
-  $('commit').disabled = total > state.money;
+  $('commit').disabled = total > state.money || projectedQP() < 0;
 }
 
 async function commit() {
@@ -94,7 +101,6 @@ async function commit() {
   let cost = BASE_COST;
   state.attributes.forEach((item) => { cost += Math.round((values.get(item.id) ?? item.value) * item.costPerUnit); });
   state.strategies.forEach((item) => { if (selectedStrategies.has(item.id)) cost += item.cost; });
-  state.hints.forEach((item) => { if (selectedHints.has(item.id)) cost += item.cost; });
   try {
     state = await request('/api/cycle', {method: 'POST', body: JSON.stringify({attributes, strategies: [...selectedStrategies], hints: [...selectedHints], cost})});
     values = new Map(); selectedHints.clear(); $('notice').textContent = ''; render();

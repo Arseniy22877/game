@@ -1,0 +1,40 @@
+{
+  "BasicAttributes": [
+    {
+      "ID": 0,
+      "DefaultValue": 0.5,
+      "MinValue": 0,
+      "MaxValue": 1,
+      "Name": "Trust",
+      "Description": "Market trust"
+    }
+  ],
+  "StartingBudget": {
+    "InitialMoney": 100,
+    "MaxMoney": 150,
+    "InitialQP": 10
+  },
+  "StartingEvents": [0],
+  "OpeningEvent": 0,
+  "Events": [
+    {
+      "ID": 0,
+      "Name": "Quiet start",
+      "Description": "The project starts without incidents.",
+      "ImageURL": "images/quiet-start.png",
+      "IsPositive": true,
+      "BasicParameters": {
+        "Power": {
+          "Amplitude": 0.1,
+          "Density": 1
+        },
+        "Weights": [1]
+      },
+      "CenterPoint": [0.5]
+    }
+  ],
+  "ProbabilityStrictness": 0.5,
+  "PowerRestoreRate": 0.5,
+  "MaxEventsPerTurn": 1,
+  "Softness": 0.1
+}
