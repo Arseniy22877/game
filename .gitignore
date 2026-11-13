@@ -1,0 +1,40 @@
+# Бинарники
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+/server
+
+# Тесты и профили Go
+*.test
+*.out
+coverage.*
+
+# База данных
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Секреты и локальные настройки
+.env
+.env.*
+!.env.example
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Фронтенд
+node_modules/
+web/dist/
+web/build/
+
+# IDE / ОС
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
