@@ -69,6 +69,24 @@ API находится в `gameengine/api.go`:
 - `GameState` и `ProbResult` содержат указатели на данные сценария. Не сериализуй их напрямую: используй DTO.
 - Поле `Iteration` движок не увеличивает. Номер раунда ведёт бэк.
 
+## Задачи и доска
+
+Задачи — GitHub Issues этого репо, доска — https://github.com/users/Warl0rdd/projects/3 (поля `Status`: Todo / In Progress / Done и `Зона`: Бэк / Фронт / Движок / Контракт / Общее). Лейблы зон: `area:backend`, `area:frontend`, `area:engine`, `area:contract`.
+
+Чтобы агенты не брали одну задачу дважды:
+1. **Перед началом работы** проверь issue: если у неё уже есть исполнитель или статус In Progress, не бери её.
+2. **Взял задачу:** `gh issue edit <N> --add-assignee @me`, переведи её в In Progress на доске и только потом начинай работу.
+3. **Нет подходящей issue:** сначала создай её (`gh issue create` с лейблом зоны), потом работай.
+4. **В PR пиши `Closes #N`.** После мержа задачу переводи в Done.
+
+Как поменять статус через CLI (нужен scope `project`: `gh auth refresh -s project`):
+```sh
+gh project item-list 3 --owner Warl0rdd --format json   # найти id элемента
+gh project item-edit --project-id PVT_kwHOA-85Uc4Brgug --id <item-id> \
+  --field-id PVTSSF_lAHOA-85Uc4BrgugzhpzIws --single-select-option-id <option>
+# Status: Todo=f75ad846, In Progress=47fc9ee4, Done=98236657
+```
+
 ## Рабочий процесс
 
 - **Не пушим напрямую в `main`.** Работаем в ветке (`feat/...`, `fix/...`, `chore/...`) и открываем PR через `gh pr create`.
