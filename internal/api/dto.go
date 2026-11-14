@@ -1,5 +1,8 @@
-// Package api содержит HTTP-хендлеры и DTO контракта фронт↔бэк.
+// Package api содержит DTO контракта фронт↔бэк: только типы и константы.
 // Описание контракта: docs/api.md. Меняется только по согласованию с фронтом.
+//
+// Пакет ничего не импортирует из internal/, чтобы его могли использовать
+// enginebridge, game, store и httpapi без циклов. Хендлеры лежат в internal/httpapi.
 package api
 
 import "time"
@@ -23,6 +26,9 @@ const (
 	CodeWrongPhase        = "wrong_phase"
 	CodeNoGame            = "no_game"
 	CodeNameTaken         = "name_taken"
+	CodeTeamsNotReady     = "teams_not_ready"
+	CodeGameInProgress    = "game_in_progress"
+	CodeTeamBankrupt      = "team_bankrupt"
 	CodeNotAllSubmitted   = "not_all_submitted"
 	CodeNotAllTeams       = "not_all_teams"
 	CodeInvalidDecision   = "invalid_decision"
@@ -59,6 +65,7 @@ type TeamSummary struct {
 	Ready     bool     `json:"ready"`
 	Online    bool     `json:"online"`
 	Submitted bool     `json:"submitted"`
+	Bankrupt  bool     `json:"bankrupt"`
 }
 
 type Budget struct {
@@ -150,6 +157,7 @@ type Cost struct {
 type Prediction struct {
 	Event       Event   `json:"event"`
 	Probability float64 `json:"probability"`
+	Suggested   bool    `json:"suggested"` // выпало в розыгрыше движка, подсказка преподу
 }
 
 // ---------- Команда ----------
@@ -197,6 +205,7 @@ type ScenariosResponse struct {
 
 type AdminTeam struct {
 	TeamSummary
+	Token       string         `json:"token"`
 	State       *TeamGameState `json:"state"`
 	Decision    *Decision      `json:"decision"`
 	Cost        *Cost          `json:"cost"`
@@ -208,11 +217,16 @@ type AdminState struct {
 	Teams []AdminTeam `json:"teams"`
 }
 
+type CreateGameRequest struct {
+	Confirm bool `json:"confirm"`
+}
+
 type StartGameRequest struct {
 	ScenarioID string `json:"scenarioId"`
 }
 
 type CloseRoundRequest struct {
+	Round int  `json:"round"`
 	Force bool `json:"force"`
 }
 
@@ -222,17 +236,35 @@ type EventSelection struct {
 }
 
 type FireEventsRequest struct {
+	Round      int              `json:"round"`
+	Finish     bool             `json:"finish"`
 	Selections []EventSelection `json:"selections"`
 }
 
-type Grade struct {
-	AttributeID int    `json:"attributeId"`
-	Score       int    `json:"score"`
-	Comment     string `json:"comment"`
+// Навыки, по которым препод оценивает команду за игру (слайд «Навыки для оценки» в ТЗ).
+const (
+	SkillProblemStatement = "problem_statement" // Постановка задачи
+	SkillFactChecking     = "fact_checking"     // Проверка информации
+	SkillConnections      = "connections"       // Поиск связей
+	SkillAlternatives     = "alternatives"      // Рассмотрение альтернатив и возражений
+	SkillRisks            = "risks"             // Оценка рисков
+	SkillRevision         = "revision"          // Пересмотр и объяснение
+)
+
+// Skills — все навыки в порядке слайда.
+var Skills = []string{
+	SkillProblemStatement, SkillFactChecking, SkillConnections,
+	SkillAlternatives, SkillRisks, SkillRevision,
 }
 
-type GradesRequest struct {
-	TeamID int64   `json:"teamId"`
+type Grade struct {
+	Skill   string `json:"skill"`
+	Score   int    `json:"score"`
+	Comment string `json:"comment"`
+}
+
+// Grades — тело запроса и ответа PUT /api/admin/games/{gameId}/teams/{teamId}/grades.
+type Grades struct {
 	Grades []Grade `json:"grades"`
 }
 
@@ -241,11 +273,36 @@ type GameHistoryItem struct {
 	ScenarioID string    `json:"scenarioId"`
 	Phase      Phase     `json:"phase"`
 	Rounds     int       `json:"rounds"`
+	Active     bool      `json:"active"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type GamesResponse struct {
 	Games []GameHistoryItem `json:"games"`
+}
+
+// GameDetail — ответ GET /api/admin/games/{gameId}.
+type GameDetail struct {
+	Game  GameHistoryItem  `json:"game"`
+	Teams []GameDetailTeam `json:"teams"`
+}
+
+type GameDetailTeam struct {
+	ID      int64             `json:"id"`
+	Name    string            `json:"name"`
+	Members []string          `json:"members"`
+	Rounds  []GameDetailRound `json:"rounds"`
+	Grades  []Grade           `json:"grades"`
+}
+
+type GameDetailRound struct {
+	Round       int           `json:"round"`
+	Decision    *Decision     `json:"decision"` // nil, если команда пропустила раунд (bankrupt)
+	Cost        *Cost         `json:"cost"`
+	Auto        bool          `json:"auto"` // решение по умолчанию при force
+	Predictions []Prediction  `json:"predictions"`
+	Events      []Event       `json:"events"`
+	State       TeamGameState `json:"state"`
 }
 
 // ---------- WebSocket ----------
