@@ -8,54 +8,53 @@ interface Props {
 }
 
 /**
- * Лобби команды: регистрация (если нет токена) или ожидание старта.
+ * Экран 2: Лобби команды (регистрация и переключение готовности).
+ * Полностью воспроизводит макет страницы 1 PDF.
  */
 export function TeamLobby({ team, onRegistered }: Props) {
-  const hasToken = !!api.getTeamToken();
-
-  if (hasToken && team) {
-    return <LobbyReady team={team} onUpdate={onRegistered} />;
+  if (team) {
+    return <TeamReadyView team={team} onUpdate={onRegistered} />;
   }
 
-  return <RegistrationForm onRegistered={onRegistered} />;
+  return <TeamRegistrationView onRegistered={onRegistered} />;
 }
 
-function RegistrationForm({ onRegistered }: { onRegistered: () => void }) {
+function TeamRegistrationView({ onRegistered }: { onRegistered: () => void }) {
   const [name, setName] = useState('');
-  const [members, setMembers] = useState<string[]>(['']);
+  const [members, setMembers] = useState<string[]>([]);
+  const [currentMemberInput, setCurrentMemberInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const addMember = () => {
-    if (members.length < 10) {
-      setMembers([...members, '']);
+  const handleAddMember = () => {
+    const trimmed = currentMemberInput.trim();
+    if (!trimmed) return;
+    if (members.length >= 10) {
+      setError('Максимум 10 участников в команде');
+      return;
     }
-  };
-
-  const removeMember = (index: number) => {
-    if (members.length > 1) {
-      setMembers(members.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateMember = (index: number, value: string) => {
-    const updated = [...members];
-    updated[index] = value;
-    setMembers(updated);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    setMembers([...members, trimmed]);
+    setCurrentMemberInput('');
     setError(null);
+  };
 
+  const handleRemoveMember = (idx: number) => {
+    setMembers(members.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async (isReady: boolean) => {
+    setError(null);
     const trimmedName = name.trim();
-    const trimmedMembers = members.map((m) => m.trim()).filter((m) => m.length > 0);
+    const finalMembers = [...members];
+    if (currentMemberInput.trim()) {
+      finalMembers.push(currentMemberInput.trim());
+    }
 
     if (!trimmedName) {
       setError('Введите название команды');
       return;
     }
-    if (trimmedMembers.length === 0) {
+    if (finalMembers.length === 0) {
       setError('Добавьте хотя бы одного участника');
       return;
     }
@@ -64,9 +63,15 @@ function RegistrationForm({ onRegistered }: { onRegistered: () => void }) {
     try {
       const res = await api.registerTeam({
         name: trimmedName,
-        members: trimmedMembers,
+        members: finalMembers,
       });
       api.setTeamToken(res.token);
+
+      // Если нажали "Не готовы", обновляем статус на сервере
+      if (!isReady) {
+        await api.setReady({ ready: false });
+      }
+
       onRegistered();
     } catch (e: unknown) {
       const err = e as Error & { userMessage?: string };
@@ -76,18 +81,22 @@ function RegistrationForm({ onRegistered }: { onRegistered: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-2xl font-bold text-center mb-6">Регистрация команды</h1>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-8 space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Вход в симуляцию</h1>
+          <p className="text-sm text-slate-500 mt-1">Зарегистрируйте команду для участия в игре</p>
+        </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
             {error}
           </div>
         )}
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        {/* Название команды */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
             Название команды
           </label>
           <input
@@ -95,63 +104,77 @@ function RegistrationForm({ onRegistered }: { onRegistered: () => void }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={40}
-            placeholder="Введите название..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            placeholder="Введите название команды..."
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 font-medium focus:bg-white focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all"
           />
         </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Участники
+        {/* Список добавленных участников */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            Состав команды ({members.length})
           </label>
-          {members.map((member, i) => (
-            <div key={i} className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={member}
-                onChange={(e) => updateMember(i, e.target.value)}
-                maxLength={60}
-                placeholder={`Участник ${i + 1}`}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              />
-              {members.length > 1 && (
+          <div className="space-y-2 mb-3">
+            {members.map((m, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800"
+              >
+                <span>{m}</span>
                 <button
                   type="button"
-                  onClick={() => removeMember(i)}
-                  className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  onClick={() => handleRemoveMember(idx)}
+                  className="text-slate-400 hover:text-red-500 transition-colors"
                 >
                   ✕
                 </button>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Инпут добавления участника */}
           {members.length < 10 && (
-            <button
-              type="button"
-              onClick={addMember}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              + Добавить участника
-            </button>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={currentMemberInput}
+                onChange={(e) => setCurrentMemberInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddMember(); } }}
+                maxLength={60}
+                placeholder="Введите ФИО участника..."
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:bg-white focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all"
+              />
+              <button
+                type="button"
+                onClick={handleAddMember}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition-colors"
+              >
+                + Добавить участника
+              </button>
+            </div>
           )}
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {submitting ? 'Регистрация...' : 'Готовы!'}
-        </button>
-      </form>
+        {/* Кнопка готовности / отправки */}
+        <div className="pt-2">
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => handleSubmit(true)}
+            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-2xl shadow-sm transition-all disabled:opacity-50"
+          >
+            {submitting ? 'Регистрация...' : 'Готовы к игре'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function LobbyReady({ team, onUpdate }: { team: TeamSummary; onUpdate: () => void }) {
+function TeamReadyView({ team, onUpdate }: { team: TeamSummary; onUpdate: () => void }) {
   const [toggling, setToggling] = useState(false);
 
-  const toggleReady = async () => {
+  const handleToggle = async () => {
     setToggling(true);
     try {
       await api.setReady({ ready: !team.ready });
@@ -163,47 +186,58 @@ function LobbyReady({ team, onUpdate }: { team: TeamSummary; onUpdate: () => voi
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
-        <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
-          team.ready ? 'bg-green-100' : 'bg-yellow-100'
-        }`}>
-          <span className="text-3xl">{team.ready ? '✓' : '⏳'}</span>
-        </div>
-
-        <h1 className="text-2xl font-bold mb-2">{team.name}</h1>
-
-        <div className="text-gray-500 mb-6">
-          {team.members.join(', ')}
-        </div>
-
-        <div className={`inline-block px-4 py-2 rounded-full text-sm font-medium mb-6 ${
-          team.ready
-            ? 'bg-green-100 text-green-700'
-            : 'bg-yellow-100 text-yellow-700'
-        }`}>
-          {team.ready ? 'Готовы к игре!' : 'Не готовы'}
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center space-y-6">
+        <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl font-bold bg-slate-100 border border-slate-200">
+          {team.ready ? (
+            <span className="text-emerald-600">✓</span>
+          ) : (
+            <span className="text-amber-500">⏳</span>
+          )}
         </div>
 
         <div>
-          <button
-            onClick={toggleReady}
-            disabled={toggling}
-            className={`w-full py-3 font-medium rounded-lg transition-colors ${
-              team.ready
-                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                : 'bg-green-600 text-white hover:bg-green-700'
-            } disabled:opacity-50`}
-          >
-            {team.ready ? 'Снять готовность' : 'Мы готовы!'}
-          </button>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Команда</span>
+          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">{team.name}</h1>
         </div>
 
-        <p className="mt-6 text-sm text-gray-400">
-          Ожидание начала игры от преподавателя...
-        </p>
+        {/* Список участников */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Участники</div>
+          <div className="space-y-1.5">
+            {team.members.map((m, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                <span>{m}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Кнопка-переключатель статуса */}
+        <div>
+          <button
+            type="button"
+            onClick={handleToggle}
+            disabled={toggling}
+            className={`w-full py-3.5 font-semibold rounded-2xl transition-all shadow-sm ${
+              team.ready
+                ? 'bg-slate-900 text-white hover:bg-slate-800'
+                : 'bg-white border-2 border-slate-300 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {team.ready ? 'Готовы' : 'Не готовы'}
+          </button>
+          <div className="text-xs text-slate-400 mt-2">
+            {team.ready ? 'Нажмите, чтобы снять готовность' : 'Нажмите, чтобы подтвердить готовность'}
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2 text-xs font-medium text-slate-500">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Ожидание начала игры преподавателем...</span>
+        </div>
       </div>
     </div>
   );
 }
-

@@ -10,39 +10,48 @@ export function TeamFinished({ state }: Props) {
   if (!team) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
-        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
-          <span className="text-3xl">🏁</span>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center space-y-6">
+        <div className="w-16 h-16 mx-auto rounded-full bg-slate-900 text-white flex items-center justify-center text-2xl font-bold shadow-sm">
+          🏁
         </div>
 
-        <h1 className="text-2xl font-bold mb-2">Игра завершена!</h1>
-        <p className="text-gray-500 mb-6">{team.name}</p>
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Симуляция завершена</span>
+          <h1 className="text-2xl font-black text-slate-900 mt-1">{team.name}</h1>
+          <p className="text-xs text-slate-500 mt-0.5">{team.members.join(', ')}</p>
+        </div>
 
         {gameState && (
-          <div className="text-left space-y-3 mb-6">
-            <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Остаток бюджета</span>
-              <span className="font-medium">💰 {gameState.budget.money}</span>
+          <div className="space-y-2.5 text-left">
+            <div className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <span className="text-xs font-semibold text-slate-600">Остаток бюджета</span>
+              <span className="font-bold font-mono text-emerald-600 text-sm">
+                💰 {gameState.budget.money} K $
+              </span>
             </div>
-            <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Очки QP</span>
-              <span className="font-medium">🔬 {gameState.budget.qp}</span>
+            <div className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <span className="text-xs font-semibold text-slate-600">Очки исследований</span>
+              <span className="font-bold font-mono text-cyan-600 text-sm">
+                🔬 {gameState.budget.qp} QP
+              </span>
             </div>
             {gameState.attributes.map((attr) => (
-              <div key={attr.id} className="flex justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">{attr.name}</span>
-                <span className="font-medium">{attr.value.toFixed(2)}</span>
+              <div key={attr.id} className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+                <span className="text-xs font-semibold text-slate-600">{attr.name}</span>
+                <span className="font-bold font-mono text-slate-900 text-sm">
+                  {Math.round(attr.value)}
+                </span>
               </div>
             ))}
           </div>
         )}
 
-        <p className="text-sm text-gray-400">
-          Спасибо за участие! Преподаватель выставляет оценки.
-        </p>
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2 text-xs font-medium text-slate-400">
+          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          <span>Спасибо за игру! Преподаватель подводит итоги...</span>
+        </div>
       </div>
     </div>
   );
 }
-

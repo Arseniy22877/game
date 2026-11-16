@@ -8,6 +8,7 @@ import { AdminFinished } from '../components/admin/AdminFinished';
 
 /**
  * Страница преподавателя (роут /admin).
+ * Синхронизирует состояние в реальном времени через WebSocket + авто-опрос.
  */
 export function AdminPage() {
   const [state, setState] = useState<AdminState | null>(null);
@@ -53,11 +54,17 @@ export function AdminPage() {
       }
     });
 
+    // Регулярный опрос для надежности
+    const pollInterval = setInterval(() => {
+      loadState();
+    }, 2500);
+
     return () => {
       unsub();
+      clearInterval(pollInterval);
       wsManager.disconnect();
     };
-  }, [loggedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loggedIn, loadState]);
 
   if (!loggedIn) {
     return (
@@ -71,24 +78,31 @@ export function AdminPage() {
     );
   }
 
-  if (loading) {
+  if (loading && !state) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg text-gray-500">Загрузка...</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
+          <div className="text-sm font-medium text-slate-500">Загрузка панели...</div>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !state) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 text-lg mb-4">{error}</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-xl">
+            ✕
+          </div>
+          <h2 className="text-lg font-bold text-slate-800 mb-2">Ошибка подключения</h2>
+          <div className="text-red-600 text-sm mb-6">{error}</div>
           <button
             onClick={() => { setLoading(true); setError(null); loadState(); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="w-full py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors shadow-sm"
           >
-            Повторить
+            Повторить попытку
           </button>
         </div>
       </div>
@@ -110,4 +124,3 @@ export function AdminPage() {
   // round_open или round_closed
   return <AdminRound state={state} onUpdate={loadState} />;
 }
-

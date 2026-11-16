@@ -5,7 +5,7 @@ interface Props {
 }
 
 export function AdminLogin({ onLogin }: Props) {
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState('admin');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,29 +16,37 @@ export function AdminLogin({ onLogin }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-2xl font-bold text-center mb-6">Панель преподавателя</h1>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Токен доступа
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-slate-200 p-8 space-y-6">
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-xl shadow-sm">
+            🎓
+          </div>
+          <h1 className="text-xl font-bold text-slate-900">Вход для преподавателя</h1>
+          <p className="text-xs text-slate-500 mt-1">Управление сессиями симуляции</p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            Токен администратора
           </label>
           <input
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder="Введите ADMIN_TOKEN..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 font-medium focus:bg-white focus:ring-2 focus:ring-slate-900 outline-none transition-all"
           />
+          <p className="text-xs text-slate-400 mt-1.5">Для локального тестирования: admin</p>
         </div>
+
         <button
           type="submit"
-          className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-sm"
         >
-          Войти
+          Войти в панель
         </button>
       </form>
     </div>
   );
 }
-

@@ -3,8 +3,6 @@ import { api, ApiRequestError } from '../../api';
 import {
   TeamState,
   DecisionRequest,
-  ConfigurableAttribute,
-  StrategyItem,
   HintItem,
   GameEvent,
 } from '../../types/api';
@@ -15,17 +13,23 @@ interface Props {
 }
 
 /**
- * Основной игровой экран команды: бюджет, стратегии, исследования, отчёт.
+ * Экран 3: Игровой стол команды (Основная страница игры).
+ * В точности воспроизводит страницу 2 PDF:
+ * - Бюджетирование (слайдеры по сферам с суммами в $)
+ * - Стратегии (карточки с описанием и стоимостью, темное выделение при выборе)
+ * - Исследования (карточки со статусами и модальным окном информации)
+ * - Отчет из 4 вопросов
+ * - Сайдбар: Раунд, Бюджет, Очки исследования, Показатели, История событий, Завершить раунд
  */
 export function TeamGame({ state, onUpdate }: Props) {
   const { game, team, state: gameState, decision: existingDecision, opening } = state;
   const isRoundOpen = game.phase === 'round_open';
   const isRoundClosed = game.phase === 'round_closed';
 
-  // Состояние формы решения
+  // Инициализация значений формы
   const [attrValues, setAttrValues] = useState<Record<number, number>>(() => {
     const initial: Record<number, number> = {};
-    if (existingDecision) {
+    if (existingDecision && existingDecision.attributes) {
       existingDecision.attributes.forEach((a) => { initial[a.id] = a.value; });
     } else if (gameState) {
       gameState.configurable.forEach((a) => { initial[a.id] = a.value; });
@@ -34,57 +38,59 @@ export function TeamGame({ state, onUpdate }: Props) {
   });
 
   const [selectedStrategies, setSelectedStrategies] = useState<Set<number>>(() => {
-    if (existingDecision) return new Set(existingDecision.strategies);
+    if (existingDecision && existingDecision.strategies) return new Set(existingDecision.strategies);
     if (gameState) return new Set(gameState.strategies.filter((s) => s.active).map((s) => s.id));
     return new Set();
   });
 
   const [selectedHints, setSelectedHints] = useState<Set<number>>(() => {
-    if (existingDecision) return new Set(existingDecision.hints);
+    if (existingDecision && existingDecision.hints) return new Set(existingDecision.hints);
     return new Set();
   });
 
   const [report, setReport] = useState({
-    why: existingDecision?.report.why ?? '',
-    alternative: existingDecision?.report.alternative ?? '',
-    risks: existingDecision?.report.risks ?? '',
-    correction: existingDecision?.report.correction ?? '',
+    why: existingDecision?.report?.why ?? '',
+    alternative: existingDecision?.report?.alternative ?? '',
+    risks: existingDecision?.report?.risks ?? '',
+    correction: existingDecision?.report?.correction ?? '',
   });
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  // Модальные окна
   const [showOpening, setShowOpening] = useState(() => game.round === 1 && opening !== null && !existingDecision);
   const [showHistory, setShowHistory] = useState(false);
-  const [showNewEvents, setShowNewEvents] = useState(() => {
-    if (!gameState || game.round <= 1) return false;
-    const lastRound = gameState.history.find((h) => h.round === game.round - 1);
-    return lastRound !== undefined && lastRound.events.length > 0 && !existingDecision;
-  });
+  const [activeHintModal, setActiveHintModal] = useState<HintItem | null>(null);
 
   if (!gameState || !team) return null;
 
-  // Расчёт стоимости
-  const moneyCost =
+  // Расчёт текущих затрат
+  const moneySpent =
     game.baseRoundCost +
     gameState.configurable.reduce((sum, attr) => {
-      const val = attrValues[attr.id] ?? attr.value;
+      const val = attrValues[attr.id] !== undefined ? attrValues[attr.id] : attr.value;
       return sum + Math.round(val * attr.costPerUnit);
     }, 0) +
     Array.from(selectedStrategies).reduce((sum, id) => {
-      const s = gameState.strategies.find((s) => s.id === id);
+      const s = gameState.strategies.find((strat) => strat.id === id);
       return sum + (s ? s.cost : 0);
     }, 0);
 
-  const qpCost = Array.from(selectedHints).reduce((sum, id) => {
-    const h = gameState.hints.find((h) => h.id === id);
+  const qpSpent = Array.from(selectedHints).reduce((sum, id) => {
+    const h = gameState.hints.find((hint) => hint.id === id);
     return sum + (h ? h.cost : 0);
   }, 0);
 
-  const moneyOver = moneyCost > gameState.budget.money;
-  const qpOver = qpCost > gameState.budget.qp;
+  const remainingMoney = gameState.budget.money - moneySpent;
+  const remainingQP = gameState.budget.qp - qpSpent;
+
+  const moneyOver = remainingMoney < 0;
+  const qpOver = remainingQP < 0;
 
   const toggleStrategy = (id: number) => {
+    if (!isRoundOpen || team.bankrupt) return;
     const next = new Set(selectedStrategies);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -92,6 +98,10 @@ export function TeamGame({ state, onUpdate }: Props) {
   };
 
   const toggleHint = (id: number) => {
+    if (!isRoundOpen || team.bankrupt) return;
+    const hint = gameState.hints.find((h) => h.id === id);
+    if (!hint || hint.used) return;
+
     const next = new Set(selectedHints);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -106,7 +116,7 @@ export function TeamGame({ state, onUpdate }: Props) {
       round: game.round,
       attributes: gameState.configurable.map((a) => ({
         id: a.id,
-        value: attrValues[a.id] ?? a.value,
+        value: attrValues[a.id] !== undefined ? attrValues[a.id] : a.value,
       })),
       strategies: Array.from(selectedStrategies),
       hints: Array.from(selectedHints),
@@ -124,29 +134,20 @@ export function TeamGame({ state, onUpdate }: Props) {
       } else if (e instanceof Error) {
         setSubmitError(e.message);
       } else {
-        setSubmitError('Произошла ошибка при отправке');
+        setSubmitError('Произошла ошибка при отправке решения');
       }
     }
     setSubmitting(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Модальное окно вступительного события */}
       {showOpening && opening && (
         <EventModal
-          title="Начало игры"
+          title={opening.name || 'Вводный сценарий'}
           events={[opening]}
           onClose={() => setShowOpening(false)}
-        />
-      )}
-
-      {/* Модальное окно новых событий */}
-      {showNewEvents && gameState.history.length > 0 && (
-        <EventModal
-          title={`События раунда ${game.round - 1}`}
-          events={gameState.history.find((h) => h.round === game.round - 1)?.events ?? []}
-          onClose={() => setShowNewEvents(false)}
         />
       )}
 
@@ -158,339 +159,376 @@ export function TeamGame({ state, onUpdate }: Props) {
         />
       )}
 
+      {/* Модальное окно завершенного исследования */}
+      {activeHintModal && (
+        <HintDetailModal
+          hint={activeHintModal}
+          onClose={() => setActiveHintModal(null)}
+        />
+      )}
+
       {/* Шапка */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold">{team.name}</h1>
-            <span className="text-sm text-gray-500">Раунд {game.round}</span>
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Команда</span>
+            <span className="text-lg font-bold text-slate-900">{team.name}</span>
+            <span className="text-xs font-medium text-slate-500">
+              ({team.members.join(', ')})
+            </span>
           </div>
-          <div className="flex gap-4 text-sm">
-            <div className={`font-medium ${moneyOver ? 'text-red-600' : 'text-gray-700'}`}>
-              💰 {gameState.budget.money - moneyCost} / {gameState.budget.money}
-              {moneyOver && <span className="ml-1 text-red-500">⚠</span>}
-            </div>
-            <div className={`font-medium ${qpOver ? 'text-red-600' : 'text-gray-700'}`}>
-              🔬 {gameState.budget.qp - qpCost} / {gameState.budget.qp}
-              {qpOver && <span className="ml-1 text-red-500">⚠</span>}
-            </div>
+
+          <div className="flex items-center gap-3">
+            {team.bankrupt && (
+              <span className="px-3 py-1 bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold rounded-full">
+                Банкрот в этом раунде
+              </span>
+            )}
+            {isRoundClosed && (
+              <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-full animate-pulse">
+                Раунд закрыт преподавателем
+              </span>
+            )}
+            {team.submitted && isRoundOpen && (
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-full">
+                ✓ Решение отправлено
+              </span>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-8">
-        {/* Банкрот */}
-        {team.bankrupt && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            Недостаточно средств для участия в этом раунде. Ожидайте результатов.
-          </div>
-        )}
+      {/* Основной контент (Двухколоночный макет по PDF) */}
+      <main className="max-w-7xl mx-auto px-4 py-8 flex-1 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Левая колонка: Основные блоки игры (8 колонок) */}
+          <div className="lg:col-span-8 space-y-10">
+            {/* Ошибки или успешные оповещения */}
+            {submitError && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-sm font-medium">
+                {submitError}
+              </div>
+            )}
+            {submitSuccess && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-medium flex items-center justify-between">
+                <span>✓ Ваше решение успешно зафиксировано. Вы можете изменить его до закрытия раунда.</span>
+                <button onClick={() => setSubmitSuccess(false)} className="text-emerald-600 hover:text-emerald-800 font-bold">✕</button>
+              </div>
+            )}
 
-        {/* Раунд закрыт */}
-        {isRoundClosed && (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700">
-            Раунд закрыт. Преподаватель выбирает события...
-          </div>
-        )}
-
-        {/* Отправлено */}
-        {(team.submitted || submitSuccess) && isRoundOpen && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-            ✓ Решение отправлено. Вы можете изменить его до закрытия раунда.
-          </div>
-        )}
-
-        {/* Базовые атрибуты */}
-        {gameState.attributes.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold mb-3">Показатели</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {gameState.attributes.map((attr) => (
-                <div key={attr.id} className="bg-white rounded-lg border p-3">
-                  <div className="text-sm text-gray-500">{attr.name}</div>
-                  <div className="text-xl font-bold">{attr.value.toFixed(2)}</div>
-                  <div className="mt-1 w-full bg-gray-200 rounded-full h-2">
+            {/* 1. БЮДЖЕТИРОВАНИЕ */}
+            <section className="space-y-4">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Бюджетирование</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {gameState.configurable.map((attr) => {
+                  const val = attrValues[attr.id] !== undefined ? attrValues[attr.id] : attr.value;
+                  const cost = Math.round(val * attr.costPerUnit);
+                  return (
                     <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{ width: `${((attr.value - attr.min) / (attr.max - attr.min)) * 100}%` }}
-                    />
-                  </div>
+                      key={attr.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-800 text-sm">{attr.name}</span>
+                        <span className="text-emerald-600 font-bold text-base font-mono">
+                          {cost}K $
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 pt-1">
+                        <input
+                          type="range"
+                          min={attr.min}
+                          max={attr.max}
+                          step={0.01}
+                          value={val}
+                          disabled={!isRoundOpen || team.bankrupt}
+                          onChange={(e) => setAttrValues({ ...attrValues, [attr.id]: parseFloat(e.target.value) })}
+                          className="flex-1 accent-slate-900 cursor-pointer disabled:cursor-not-allowed"
+                        />
+                      </div>
+                      {attr.description && (
+                        <p className="text-xs text-slate-400 line-clamp-1">{attr.description}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 2. СТРАТЕГИИ */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Стратегии</h2>
+                <span className="text-xs text-slate-400">Нажмите на карточку для выбора</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {gameState.strategies.map((strategy) => {
+                  const isSelected = selectedStrategies.has(strategy.id);
+                  return (
+                    <button
+                      key={strategy.id}
+                      type="button"
+                      disabled={!isRoundOpen || team.bankrupt}
+                      onClick={() => toggleStrategy(strategy.id)}
+                      className={`text-left p-6 rounded-3xl border transition-all flex flex-col justify-between space-y-4 ${
+                        isSelected
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20'
+                          : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 shadow-sm'
+                      } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className={`font-bold text-base ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                            {strategy.name}
+                          </h3>
+                        </div>
+                        <p className={`text-xs leading-relaxed ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {strategy.description}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100/10">
+                        <span className={`text-sm font-bold font-mono ${isSelected ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                          {strategy.cost}K $
+                        </span>
+                        {isSelected && (
+                          <span className="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                            ✓ Стратегия выбрана
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 3. ИССЛЕДОВАНИЯ */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Исследования</h2>
+                <span className="text-xs text-slate-400">Оплачиваются за QP</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {gameState.hints.map((hint) => {
+                  const isSelected = selectedHints.has(hint.id);
+                  const isCompleted = hint.used;
+
+                  if (isCompleted) {
+                    return (
+                      <div
+                        key={hint.id}
+                        onClick={() => setActiveHintModal(hint)}
+                        className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm border border-slate-900 cursor-pointer hover:bg-slate-800 transition-all flex flex-col justify-between space-y-3"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-bold text-base text-white">{hint.name}</h3>
+                            <span className="text-emerald-400 font-bold text-sm">✓</span>
+                          </div>
+                          <p className="text-xs text-slate-300 line-clamp-2">{hint.description}</p>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-emerald-400 font-medium">
+                          <span>Исследование завершено</span>
+                          <span className="underline">Открыть информацию →</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={hint.id}
+                      type="button"
+                      disabled={!isRoundOpen || team.bankrupt}
+                      onClick={() => toggleHint(hint.id)}
+                      className={`text-left p-6 rounded-3xl border transition-all flex flex-col justify-between space-y-4 ${
+                        isSelected
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20'
+                          : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 shadow-sm'
+                      } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                      <div>
+                        <h3 className={`font-bold text-base mb-2 ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                          {hint.name}
+                        </h3>
+                        <p className={`text-xs leading-relaxed ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {hint.description}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100/10">
+                        <span className={`text-sm font-bold font-mono ${isSelected ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                          {hint.cost} QP
+                        </span>
+                        {isSelected ? (
+                          <span className="text-xs font-semibold text-slate-300">
+                            Выбрано на след. ход ✓
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400">
+                            Нажмите для выбора
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 4. ОТЧЁТ (4 поля из PDF) */}
+            <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Отчёт</h2>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Почему именно такое решение?
+                  </label>
+                  <textarea
+                    value={report.why}
+                    disabled={!isRoundOpen || team.bankrupt}
+                    onChange={(e) => setReport({ ...report, why: e.target.value })}
+                    rows={3}
+                    placeholder="Опишите аргументацию выбранных параметров бюджета и стратегий..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-slate-900 outline-none transition-all resize-y disabled:opacity-60"
+                  />
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
 
-        {/* Сферы бюджета (слайдеры) */}
-        {gameState.configurable.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold mb-3">Распределение бюджета</h2>
-            <div className="space-y-4">
-              {gameState.configurable.map((attr) => (
-                <SliderRow
-                  key={attr.id}
-                  attr={attr}
-                  value={attrValues[attr.id] ?? attr.value}
-                  onChange={(v) => setAttrValues({ ...attrValues, [attr.id]: v })}
-                  disabled={!isRoundOpen || team.bankrupt}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Какие риски с ним связаны?
+                  </label>
+                  <textarea
+                    value={report.risks}
+                    disabled={!isRoundOpen || team.bankrupt}
+                    onChange={(e) => setReport({ ...report, risks: e.target.value })}
+                    rows={3}
+                    placeholder="Оцените возможные негативные события и уязвимости решения..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-slate-900 outline-none transition-all resize-y disabled:opacity-60"
+                  />
+                </div>
 
-        {/* Стратегии */}
-        {gameState.strategies.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold mb-3">Стратегии</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {gameState.strategies.map((s) => (
-                <StrategyCard
-                  key={s.id}
-                  strategy={s}
-                  selected={selectedStrategies.has(s.id)}
-                  onToggle={() => toggleStrategy(s.id)}
-                  disabled={!isRoundOpen || team.bankrupt}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Какие могут быть альтернативы?
+                  </label>
+                  <textarea
+                    value={report.alternative}
+                    disabled={!isRoundOpen || team.bankrupt}
+                    onChange={(e) => setReport({ ...report, alternative: e.target.value })}
+                    rows={3}
+                    placeholder="Какие альтернативные варианты рассматривала команда?.."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-slate-900 outline-none transition-all resize-y disabled:opacity-60"
+                  />
+                </div>
 
-        {/* Исследования */}
-        {gameState.hints.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold mb-3">Исследования</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {gameState.hints.map((h) => (
-                <HintCard
-                  key={h.id}
-                  hint={h}
-                  selected={selectedHints.has(h.id)}
-                  onToggle={() => toggleHint(h.id)}
-                  disabled={!isRoundOpen || team.bankrupt || h.used}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Отчёт */}
-        {isRoundOpen && !team.bankrupt && (
-          <section>
-            <h2 className="text-lg font-semibold mb-3">Отчёт</h2>
-            <div className="space-y-4">
-              <ReportField
-                label="Почему именно такое решение?"
-                value={report.why}
-                onChange={(v) => setReport({ ...report, why: v })}
-              />
-              <ReportField
-                label="Какое могло быть другое решение?"
-                value={report.alternative}
-                onChange={(v) => setReport({ ...report, alternative: v })}
-              />
-              <ReportField
-                label="Какие риски связаны с вашим решением?"
-                value={report.risks}
-                onChange={(v) => setReport({ ...report, risks: v })}
-              />
-              <ReportField
-                label="Что изменили бы, если бы это была реальная жизнь?"
-                value={report.correction}
-                onChange={(v) => setReport({ ...report, correction: v })}
-              />
-            </div>
-          </section>
-        )}
-
-        {/* Ошибка отправки */}
-        {submitError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {submitError}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Если бы была возможность выбора вне игры, чтобы вы сделали?
+                  </label>
+                  <textarea
+                    value={report.correction}
+                    disabled={!isRoundOpen || team.bankrupt}
+                    onChange={(e) => setReport({ ...report, correction: e.target.value })}
+                    rows={3}
+                    placeholder="Действия в реальном мире за рамками предложенных механик..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-slate-900 outline-none transition-all resize-y disabled:opacity-60"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
-        )}
 
-        {/* Кнопки */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowHistory(true)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
-          >
-            История событий
-          </button>
-          {isRoundOpen && !team.bankrupt && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || moneyOver || qpOver}
-              className="flex-1 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {submitting
-                ? 'Отправка...'
-                : team.submitted
-                  ? 'Переотправить решение'
-                  : 'Завершить раунд'}
-            </button>
-          )}
+          {/* Правая колонка: Сайдбар статуса (4 колонки) */}
+          <div className="lg:col-span-4 space-y-6 sticky top-24">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+              {/* Номер раунда */}
+              <div className="border-b border-slate-100 pb-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Текущий этап</span>
+                <h2 className="text-2xl font-black text-slate-900 mt-1">Раунд {game.round}</h2>
+              </div>
+
+              {/* Бюджет */}
+              <div className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Бюджет</span>
+                <div className={`text-2xl font-black font-mono ${moneyOver ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {remainingMoney} / {gameState.budget.money} K $
+                </div>
+                {moneyOver && (
+                  <div className="text-xs font-semibold text-rose-500 mt-1">
+                    ⚠ Превышен лимит доступных средств!
+                  </div>
+                )}
+              </div>
+
+              {/* Очки исследования */}
+              <div className="space-y-1 border-t border-slate-100 pt-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Очки исследования</span>
+                <div className={`text-2xl font-black font-mono ${qpOver ? 'text-rose-600' : 'text-cyan-600'}`}>
+                  {remainingQP} / {gameState.budget.qp} QP
+                </div>
+                {qpOver && (
+                  <div className="text-xs font-semibold text-rose-500 mt-1">
+                    ⚠ Не хватает очков QP на выбранные исследования!
+                  </div>
+                )}
+              </div>
+
+              {/* Показатели */}
+              <div className="border-t border-slate-100 pt-4 space-y-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Показатели компании</span>
+                <div className="space-y-2.5">
+                  {gameState.attributes.map((attr) => (
+                    <div
+                      key={attr.id}
+                      className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl"
+                    >
+                      <span className="text-xs font-semibold text-slate-700">{attr.name}</span>
+                      <span className="text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                        {Math.round(attr.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Кнопка "История событий" */}
+              <div className="border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(true)}
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-bold rounded-2xl transition-colors shadow-2xs"
+                >
+                  История событий
+                </button>
+              </div>
+
+              {/* Кнопка "Завершить раунд" */}
+              {isRoundOpen && !team.bankrupt && (
+                <button
+                  type="button"
+                  disabled={submitting || moneyOver || qpOver}
+                  onClick={handleSubmit}
+                  className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white text-base font-bold rounded-2xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting
+                    ? 'Отправка решения...'
+                    : team.submitted
+                      ? 'Переотправить решение'
+                      : 'Завершить раунд'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </main>
     </div>
   );
 }
 
-// --- Вспомогательные компоненты ---
-
-function SliderRow({
-  attr,
-  value,
-  onChange,
-  disabled,
-}: {
-  attr: ConfigurableAttribute;
-  value: number;
-  onChange: (v: number) => void;
-  disabled: boolean;
-}) {
-  const cost = Math.round(value * attr.costPerUnit);
-  return (
-    <div className="bg-white rounded-lg border p-4">
-      <div className="flex justify-between items-center mb-2">
-        <div>
-          <span className="font-medium">{attr.name}</span>
-          <span className="text-sm text-gray-500 ml-2">{attr.description}</span>
-        </div>
-        <div className="text-sm font-medium text-gray-600">
-          💰 {cost}
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-gray-400">{attr.min}</span>
-        <input
-          type="range"
-          min={attr.min}
-          max={attr.max}
-          step={0.01}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          disabled={disabled}
-          className="flex-1"
-        />
-        <span className="text-xs text-gray-400">{attr.max}</span>
-        <span className="text-sm font-mono w-12 text-right">{value.toFixed(2)}</span>
-      </div>
-    </div>
-  );
-}
-
-function StrategyCard({
-  strategy,
-  selected,
-  onToggle,
-  disabled,
-}: {
-  strategy: StrategyItem;
-  selected: boolean;
-  onToggle: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      className={`text-left p-4 rounded-lg border-2 transition-colors ${
-        selected
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-200 bg-white hover:border-gray-300'
-      } disabled:opacity-50 disabled:cursor-not-allowed`}
-    >
-      <div className="flex justify-between items-start">
-        <span className="font-medium">{strategy.name}</span>
-        <span className="text-sm text-gray-500">💰 {strategy.cost}/раунд</span>
-      </div>
-      <p className="text-sm text-gray-600 mt-1">{strategy.description}</p>
-      {strategy.active && !selected && (
-        <span className="inline-block mt-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
-          Активна (будет отключена)
-        </span>
-      )}
-    </button>
-  );
-}
-
-function HintCard({
-  hint,
-  selected,
-  onToggle,
-  disabled,
-}: {
-  hint: HintItem;
-  selected: boolean;
-  onToggle: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <div
-      className={`p-4 rounded-lg border-2 ${
-        hint.used
-          ? 'border-green-200 bg-green-50'
-          : selected
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-gray-200 bg-white'
-      }`}
-    >
-      <div className="flex justify-between items-start">
-        <span className="font-medium">{hint.name}</span>
-        <span className="text-sm text-gray-500">🔬 {hint.cost} QP</span>
-      </div>
-      <p className="text-sm text-gray-600 mt-1">{hint.description}</p>
-      <div className="text-xs text-gray-400 mt-1">Надёжность: {hint.reliability}</div>
-
-      {hint.used && hint.secret && (
-        <div className="mt-3 p-3 bg-white rounded border border-green-300 text-sm">
-          <div className="text-xs text-green-600 font-medium mb-1">Результат:</div>
-          {hint.secret}
-        </div>
-      )}
-
-      {!hint.used && (
-        <button
-          onClick={onToggle}
-          disabled={disabled}
-          className={`mt-3 w-full py-2 text-sm font-medium rounded-lg transition-colors ${
-            selected
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {selected ? 'Выбрано ✓' : 'Купить'}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function ReportField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        maxLength={4000}
-        rows={3}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-y"
-      />
-    </div>
-  );
-}
+// --- Модальные окна ---
 
 function EventModal({
   title,
@@ -502,41 +540,33 @@ function EventModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6">
-        <h2 className="text-xl font-bold mb-4">{title}</h2>
-        {events.length === 0 ? (
-          <p className="text-gray-500">Событий не произошло.</p>
-        ) : (
-          <div className="space-y-4">
-            {events.map((ev) => (
-              <div
-                key={ev.id}
-                className={`p-4 rounded-lg border-2 ${
-                  ev.isPositive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-                }`}
-              >
-                {ev.imageUrl && (
-                  <img
-                    src={ev.imageUrl}
-                    alt={ev.name}
-                    className="w-full h-40 object-cover rounded-lg mb-3"
-                  />
-                )}
-                <div className="flex items-center gap-2 mb-1">
-                  <span>{ev.isPositive ? '✅' : '⚠️'}</span>
-                  <span className="font-semibold">{ev.name}</span>
-                </div>
-                <p className="text-sm text-gray-700">{ev.description}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-3xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-7 space-y-5 animate-in fade-in duration-200">
+        <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+        <div className="space-y-4">
+          {events.map((ev) => (
+            <div
+              key={ev.id}
+              className={`p-5 rounded-2xl border ${
+                ev.isPositive
+                  ? 'border-emerald-200 bg-emerald-50/50 text-emerald-950'
+                  : 'border-rose-200 bg-rose-50/50 text-rose-950'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2 font-bold text-base">
+                <span>{ev.isPositive ? '✅' : '⚠️'}</span>
+                <span>{ev.name}</span>
               </div>
-            ))}
-          </div>
-        )}
+              <p className="text-sm leading-relaxed text-slate-700">{ev.description}</p>
+            </div>
+          ))}
+        </div>
         <button
+          type="button"
           onClick={onClose}
-          className="mt-6 w-full py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+          className="w-full py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-colors"
         >
-          Понятно
+          Продолжить
         </button>
       </div>
     </div>
@@ -551,40 +581,48 @@ function HistoryModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6">
-        <h2 className="text-xl font-bold mb-4">История событий</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-3xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-7 space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-900">История событий</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+        </div>
+
         {history.length === 0 ? (
-          <p className="text-gray-500">Пока нет событий.</p>
+          <p className="text-sm text-slate-400 py-8 text-center">Событий пока не произошло.</p>
         ) : (
           <div className="space-y-6">
-            {history.map((round) => (
-              <div key={round.round}>
-                <h3 className="font-medium text-gray-800 mb-2">Раунд {round.round}</h3>
-                {round.events.length === 0 ? (
-                  <p className="text-sm text-gray-400">Без событий</p>
+            {history.map((r) => (
+              <div key={r.round} className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  {r.round === 0 ? 'Начало игры' : `Раунд ${r.round}`}
+                </h3>
+                {r.events.length === 0 ? (
+                  <div className="text-xs text-slate-400 italic">Событий без происшествий</div>
                 ) : (
-                  <div className="space-y-2">
-                    {round.events.map((ev) => (
-                      <div
-                        key={ev.id}
-                        className={`p-3 rounded-lg text-sm ${
-                          ev.isPositive ? 'bg-green-50' : 'bg-red-50'
-                        }`}
-                      >
-                        <span>{ev.isPositive ? '✅' : '⚠️'}</span>{' '}
-                        <span className="font-medium">{ev.name}</span>
-                      </div>
-                    ))}
-                  </div>
+                  r.events.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className={`p-4 rounded-2xl border text-sm ${
+                        ev.isPositive
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                          : 'border-rose-200 bg-rose-50 text-rose-900'
+                      }`}
+                    >
+                      <span className="font-bold">{ev.name}: </span>
+                      <span className="text-slate-700">{ev.description}</span>
+                    </div>
+                  ))
                 )}
               </div>
             ))}
           </div>
         )}
+
         <button
+          type="button"
           onClick={onClose}
-          className="mt-6 w-full py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+          className="w-full py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-colors"
         >
           Закрыть
         </button>
@@ -593,3 +631,40 @@ function HistoryModal({
   );
 }
 
+function HintDetailModal({
+  hint,
+  onClose,
+}: {
+  hint: HintItem;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-7 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900">{hint.name}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+        </div>
+
+        <p className="text-xs text-slate-500 leading-relaxed">{hint.description}</p>
+
+        <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+          <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+            Результаты исследования:
+          </div>
+          <div className="text-sm font-medium text-emerald-950 leading-relaxed">
+            {hint.secret || 'Информация получена.'}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-colors"
+        >
+          Понятно
+        </button>
+      </div>
+    </div>
+  );
+}
