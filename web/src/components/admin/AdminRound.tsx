@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { AdminState } from '../../types/api';
 
@@ -37,6 +37,28 @@ export function AdminRound({ state, onUpdate }: Props) {
     });
     return init;
   });
+
+  // Автоматическая синхронизация рекомендованных событий при переходе в round_closed
+  useEffect(() => {
+    if (isClosed) {
+      setEventSelections((prev) => {
+        const next = { ...prev };
+        teams.forEach((t) => {
+          if (!next[t.id] || next[t.id].size === 0) {
+            const suggested = (t.predictions || [])
+              .filter((p) => p.suggested)
+              .map((p) => p.event.id);
+            if (suggested.length > 0) {
+              next[t.id] = new Set(suggested);
+            } else if (!next[t.id]) {
+              next[t.id] = new Set();
+            }
+          }
+        });
+        return next;
+      });
+    }
+  }, [isClosed, teams]);
 
   const handleCloseRound = async (force: boolean) => {
     const notSubmitted = teams.filter((t) => !t.submitted && !t.bankrupt);

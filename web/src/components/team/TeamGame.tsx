@@ -61,6 +61,11 @@ export function TeamGame({ state, onUpdate }: Props) {
 
   // Модальные окна
   const [showOpening, setShowOpening] = useState(() => game.round === 1 && opening !== null && !existingDecision);
+  const [showRoundEvents, setShowRoundEvents] = useState(() => {
+    if (game.round <= 1 || !gameState) return false;
+    const prevHistory = gameState.history.find((h) => h.round === game.round - 1);
+    return !!prevHistory && prevHistory.events.length > 0 && !existingDecision;
+  });
   const [showHistory, setShowHistory] = useState(false);
   const [activeHintModal, setActiveHintModal] = useState<HintItem | null>(null);
 
@@ -148,6 +153,15 @@ export function TeamGame({ state, onUpdate }: Props) {
           title={opening.name || 'Вводный сценарий'}
           events={[opening]}
           onClose={() => setShowOpening(false)}
+        />
+      )}
+
+      {/* Модальное окно событий нового раунда */}
+      {showRoundEvents && gameState && (
+        <EventModal
+          title={`Произошедшие события (раунд ${game.round - 1})`}
+          events={gameState.history.find((h) => h.round === game.round - 1)?.events || []}
+          onClose={() => setShowRoundEvents(false)}
         />
       )}
 
@@ -456,6 +470,9 @@ export function TeamGame({ state, onUpdate }: Props) {
                 <div className={`text-2xl font-black font-mono ${moneyOver ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {remainingMoney} / {gameState.budget.money} K $
                 </div>
+                <div className="text-xs text-slate-400">
+                  Затраты на раунд: {moneySpent} K $
+                </div>
                 {moneyOver && (
                   <div className="text-xs font-semibold text-rose-500 mt-1">
                     ⚠ Превышен лимит доступных средств!
@@ -487,7 +504,7 @@ export function TeamGame({ state, onUpdate }: Props) {
                     >
                       <span className="text-xs font-semibold text-slate-700">{attr.name}</span>
                       <span className="text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
-                        {Math.round(attr.value)}
+                        {attr.max <= 1 && attr.min >= 0 ? `${Math.round(attr.value * 100)}%` : Math.round(attr.value)}
                       </span>
                     </div>
                   ))}

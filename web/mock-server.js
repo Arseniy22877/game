@@ -391,17 +391,27 @@ const server = http.createServer(async (req, res) => {
       gameState.phase = 'finished';
       broadcast('phase_changed', gameState);
     } else {
-      // Для каждой команды отправляем произошедшие события
+      // Для каждой команды отправляем произошедшие события и сохраняем в историю
       for (const sel of (body.selections || [])) {
         const eventsFired = predictions
           .filter((p) => sel.eventIds.includes(p.event.id))
           .map((p) => p.event);
+
+        defaultTeamGameState.history.push({
+          round: gameState.round,
+          events: eventsFired,
+        });
 
         broadcastToTeam(sel.teamId, 'team_state', {
           round: gameState.round + 1,
           events: eventsFired,
         });
       }
+
+      // Все купленные подсказки открывают результат
+      defaultTeamGameState.hints.forEach((h) => {
+        h.used = true;
+      });
 
       gameState.phase = 'round_open';
       gameState.round += 1;

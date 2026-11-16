@@ -233,9 +233,23 @@ function TeamReadyView({ team, onUpdate }: { team: TeamSummary; onUpdate: () => 
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2 text-xs font-medium text-slate-500">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Ожидание начала игры преподавателем...</span>
+        <div className="pt-2 border-t border-slate-100 flex flex-col items-center justify-center gap-2 text-xs font-medium text-slate-500">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Ожидание начала игры преподавателем...</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Выйти из этой команды и зарегистрировать другую?')) {
+                api.clearTeamToken();
+                onUpdate();
+              }
+            }}
+            className="text-slate-400 hover:text-slate-600 mt-1 underline"
+          >
+            Сменить команду
+          </button>
         </div>
       </div>
     </div>
