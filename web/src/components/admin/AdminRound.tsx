@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import { AdminState } from '../../types/api';
 
@@ -26,39 +26,29 @@ export function AdminRound({ state, onUpdate }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(teams.length > 0 ? teams[0].id : null);
 
-  // Выбранные события для команд
-  const [eventSelections, setEventSelections] = useState<Record<number, Set<number>>>(() => {
-    const init: Record<number, Set<number>> = {};
-    teams.forEach((t) => {
-      const suggested = (t.predictions || [])
-        .filter((p) => p.suggested)
-        .map((p) => p.event.id);
-      init[t.id] = new Set(suggested);
-    });
-    return init;
-  });
+  // Выбранные события для команд: { [teamId]: Set(eventIds) }
+  const [eventSelections, setEventSelections] = useState<Record<number, Set<number>>>({});
+  const initializedRoundRef = useRef<number | null>(null);
 
-  // Автоматическая синхронизация рекомендованных событий при переходе в round_closed
+  // Автоматическая инициализация рекомендованных событий СТРОГО 1 РАЗ на каждый вход в round_closed
   useEffect(() => {
     if (isClosed) {
-      setEventSelections((prev) => {
-        const next = { ...prev };
+      const hasPredictions = teams.some((t) => (t.predictions || []).length > 0);
+      if (hasPredictions && initializedRoundRef.current !== game.round) {
+        const initial: Record<number, Set<number>> = {};
         teams.forEach((t) => {
-          if (!next[t.id] || next[t.id].size === 0) {
-            const suggested = (t.predictions || [])
-              .filter((p) => p.suggested)
-              .map((p) => p.event.id);
-            if (suggested.length > 0) {
-              next[t.id] = new Set(suggested);
-            } else if (!next[t.id]) {
-              next[t.id] = new Set();
-            }
-          }
+          const suggested = (t.predictions || [])
+            .filter((p) => p.suggested)
+            .map((p) => p.event.id);
+          initial[t.id] = new Set(suggested);
         });
-        return next;
-      });
+        setEventSelections(initial);
+        initializedRoundRef.current = game.round;
+      }
+    } else {
+      initializedRoundRef.current = null;
     }
-  }, [isClosed, teams]);
+  }, [isClosed, game.round, teams]);
 
   const handleCloseRound = async (force: boolean) => {
     const notSubmitted = teams.filter((t) => !t.submitted && !t.bankrupt);
@@ -85,15 +75,42 @@ export function AdminRound({ state, onUpdate }: Props) {
   };
 
   const toggleEvent = (teamId: number, eventId: number) => {
-    const current = new Set(eventSelections[teamId] || []);
-    if (current.has(eventId)) current.delete(eventId);
-    else current.add(eventId);
-    setEventSelections({ ...eventSelections, [teamId]: current });
+    setEventSelections((prev) => {
+      const current = new Set(prev[teamId] || []);
+      if (current.has(eventId)) {
+        current.delete(eventId);
+      } else {
+        current.add(eventId);
+      }
+      return {
+        ...prev,
+        [teamId]: current,
+      };
+    });
+  };
+
+  const selectSuggested = (teamId: number) => {
+    const t = teams.find((x) => x.id === teamId);
+    if (!t) return;
+    const suggested = (t.predictions || [])
+      .filter((p) => p.suggested)
+      .map((p) => p.event.id);
+    setEventSelections((prev) => ({
+      ...prev,
+      [teamId]: new Set(suggested),
+    }));
+  };
+
+  const clearEvents = (teamId: number) => {
+    setEventSelections((prev) => ({
+      ...prev,
+      [teamId]: new Set(),
+    }));
   };
 
   const handleApplyEvents = async (finish: boolean) => {
     const action = finish ? 'Завершить игру' : 'Применить события и открыть следующий раунд';
-    if (!confirm(`${action}? Это действие зафиксирует события для всех команд.`)) return;
+    if (!confirm(`${action}? Это действие зафиксирует выбранные события для всех команд.`)) return;
 
     setLoading(true);
     setError(null);
@@ -248,8 +265,8 @@ export function AdminRound({ state, onUpdate }: Props) {
                         {t.members.join(', ')}
                       </div>
                       {isClosed && (
-                        <div className="text-xs font-semibold text-indigo-600 mt-2">
-                          Событий выбрано: {fixedEventsCount}
+                        <div className={`text-xs font-semibold mt-2 ${fixedEventsCount > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                          {fixedEventsCount > 0 ? `Событий выбрано: ${fixedEventsCount}` : 'События не выбраны (0)'}
                         </div>
                       )}
                     </div>
@@ -302,18 +319,36 @@ export function AdminRound({ state, onUpdate }: Props) {
                 {/* 1. РАССЧИТАННЫЕ СОБЫТИЯ С ВЕРОЯТНОСТЯМИ (если раунд закрыт) */}
                 {isClosed && (
                   <section className="space-y-4 bg-slate-50 border border-slate-200 rounded-3xl p-6">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900">
-                        Возможные события для команды
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Нажмите на событие, чтобы зафиксировать его наступление в этом раунде:
-                      </p>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">
+                          События для команды «{selectedTeam.name}»
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Нажмите на карточку события для фиксации. Зафиксировано: {(eventSelections[selectedTeam.id] || new Set()).size}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => selectSuggested(selectedTeam.id)}
+                          className="text-xs font-semibold px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl transition-colors"
+                        >
+                          Рекомендованные
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => clearEvents(selectedTeam.id)}
+                          className="text-xs font-semibold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors"
+                        >
+                          Очистить (0)
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 pt-1">
                       {(selectedTeam.predictions || []).length === 0 ? (
-                        <p className="text-sm text-slate-400 italic">Событий для этой команды не спрогнозировано.</p>
+                        <p className="text-sm text-slate-400 italic py-4">Событий для этой команды не спрогнозировано.</p>
                       ) : (
                         selectedTeam.predictions.map((pred) => {
                           const isFixed = (eventSelections[selectedTeam.id] || new Set()).has(pred.event.id);
