@@ -12,7 +12,8 @@ type HintId int
 // Идентификатор атрибута.
 type AttributeId int
 
-// Вектор координат игрового состояния или параметров события.
+type Branch string
+
 type Vector []float64
 
 // Атрибут, который описывает измерение состояния игры.
@@ -39,6 +40,8 @@ type Hint struct {
 	Name        string
 	Description string
 	Secret      string
+
+	Prerequisites Prerequisite
 }
 
 // Стратегия с временными изменениями состояния и стоимостью поддержки.
@@ -49,10 +52,9 @@ type Strategy struct {
 	Description string
 	Cost        int
 
+	Prerequisites Prerequisite
 	// Изменения, применяемые при активации стратегии.
-	ParameterChanges []EventParametersChange
 	AttributeChanges []AttributeChange
-	EventsUnlocked   []EventId
 }
 
 // Правила и текущие пределы игрового бюджета.
@@ -62,16 +64,16 @@ type Budget struct {
 	InitialQP    int
 }
 
-// Амплитуда и плотность влияния события.
-type Power struct {
-	Amplitude float64
-	Density   float64
+type Prerequisite struct {
+	Events     []EventId
+	Strategies []StrategyId
 }
 
-// Параметры, по которым событие влияет на пространство состояний.
-type EventParameters struct {
-	Power   Power
-	Weights Vector
+type Threshold struct {
+	AttributeID AttributeId
+	Value       float64
+	Min         float64
+	Max         float64
 }
 
 // Описание события и его последствия после срабатывания.
@@ -84,24 +86,17 @@ type GameEvent struct {
 	IsPositive  bool
 
 	// Положение события и его базовые параметры в пространстве состояний.
-	BasicParameters EventParameters
-	CenterPoint     Vector
-
-	// Изменения состояния, выполняемые после события.
-	ParameterChanges   []EventParametersChange
-	AttributeChanges   []AttributeChange
-	HintsUnlocked      []HintId
-	StrategiesUnlocked []StrategyId
-	EventsUnlocked     []EventId
-	BudgetChange       BudgetChange
+	Weights          Vector
+	BasicPower       float64
+	Branch           Branch
+	Iteration        int
+	Prerequisites    Prerequisite
+	Thresholds       []Threshold
+	AttributeChanges []AttributeChange
+	BudgetChange     BudgetChange
 }
 
 // Изменение параметров поля конкретного события.
-
-type EventParametersChange struct {
-	EventID EventId
-	Shift   EventParameters
-}
 
 type AttributeChange struct {
 	AttributeID    AttributeId
@@ -118,15 +113,11 @@ type BudgetChange struct {
 type Game struct {
 	BasicAttributes        []GameAttribute
 	ConfigurableAttributes []ConfigurableAttribute
+	Branches               []Branch
 	Events                 []GameEvent
 	Hints                  []Hint
 	Strategies             []Strategy
 	StartingBudget         Budget
-	StartingEvents         []EventId
 	OpeningEvent           EventId
-	ProbabilityStrictness  float64
-	PowerRestoreRate       float64
 	MaxEventsPerTurn       int
-	// Минимальная вероятность плохого события, при которой оно гарантируется.
-	Softness float64
 }
