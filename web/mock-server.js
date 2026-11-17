@@ -407,9 +407,12 @@ const server = http.createServer(async (req, res) => {
         const selectedEventIds = sel.eventIds || [];
 
         // Только события, выбранные для ЭТОЙ команды
-        const eventsFired = currentPredictions
-          .filter((p) => selectedEventIds.includes(p.event.id))
-          .map((p) => p.event);
+        const eventsFired = selectedEventIds
+          .map((id) => {
+            const fromPred = currentPredictions.find((p) => p.event.id === id);
+            return fromPred ? fromPred.event : EVENT_CATALOG[id];
+          })
+          .filter(Boolean);
 
         // Сохраняем в историю ТОЛЬКО этой команды
         tState.history.push({
@@ -485,7 +488,7 @@ const server = http.createServer(async (req, res) => {
         let eventQP = 0;
 
         for (const ev of eventsFired) {
-          const raw = EVENT_CATALOG[ev.id];
+          const raw = EVENT_CATALOG[ev.id] || ev;
           if (raw) {
             eventMoney += raw.money || 0;
             eventQP += raw.qp || 0;

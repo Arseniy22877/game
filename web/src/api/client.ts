@@ -20,6 +20,35 @@ import {
 
 const API_BASE = '/api';
 
+function getStorageItem(key: string): string | null {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const val = sessionStorage.getItem(key);
+      if (val) return val;
+    }
+  } catch {
+    // ignore storage restrictions
+  }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem(key);
+    }
+  } catch {
+    // ignore storage restrictions
+  }
+  return null;
+}
+
+function setStorageItem(key: string, val: string | null): void {
+  if (val) {
+    try { sessionStorage.setItem(key, val); } catch { /* ignore */ }
+    try { localStorage.setItem(key, val); } catch { /* ignore */ }
+  } else {
+    try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+  }
+}
+
 class ApiClient {
   private teamToken: string | null = null;
   private adminToken: string | null = null;
@@ -28,35 +57,31 @@ class ApiClient {
 
   setTeamToken(token: string | null) {
     this.teamToken = token;
-    if (token) {
-      localStorage.setItem('teamToken', token);
-    } else {
-      localStorage.removeItem('teamToken');
-    }
+    setStorageItem('teamToken', token);
   }
 
   getTeamToken(): string | null {
     if (!this.teamToken) {
-      this.teamToken = localStorage.getItem('teamToken');
+      this.teamToken = getStorageItem('teamToken');
     }
     return this.teamToken;
   }
 
   setAdminToken(token: string) {
     this.adminToken = token;
-    localStorage.setItem('adminToken', token);
+    setStorageItem('adminToken', token);
   }
 
   getAdminToken(): string | null {
     if (!this.adminToken) {
-      this.adminToken = localStorage.getItem('adminToken');
+      this.adminToken = getStorageItem('adminToken');
     }
     return this.adminToken;
   }
 
   clearTeamToken() {
     this.teamToken = null;
-    localStorage.removeItem('teamToken');
+    setStorageItem('teamToken', null);
   }
 
   // --- Утилита ---
