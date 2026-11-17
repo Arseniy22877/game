@@ -136,8 +136,8 @@ func ValidateGame(game *Game) error {
 	if game.StartingBudget.InitialMoney > game.StartingBudget.MaxMoney {
 		return fmt.Errorf("initial money %d exceeds maximum money %d", game.StartingBudget.InitialMoney, game.StartingBudget.MaxMoney)
 	}
-	if game.MaxEventsPerTurn < 0 {
-		return fmt.Errorf("MaxEventsPerTurn cannot be negative")
+	if !isFinite(game.MinProbabilitySum) || game.MinProbabilitySum < 0 {
+		return fmt.Errorf("MinProbabilitySum must be finite and non-negative")
 	}
 
 	branchIDs := make(map[Branch]struct{}, len(game.Branches))

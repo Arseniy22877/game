@@ -114,7 +114,7 @@ type Game struct {
 	Strategies             []Strategy
 	StartingBudget         Budget
 	OpeningEvent           EventId
-	MaxEventsPerTurn       int
+	MinProbabilitySum      float64
 }
 
 type HintStatus int

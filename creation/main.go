@@ -325,7 +325,7 @@ select,input,textarea{width:100%;min-width:0;border:1px solid #cbd5df;border-rad
   </div>
   <span id="status" class="status">Загрузка…</span>
 </header>
-<p class="intro">Изменения сохраняются в JSON-файл выбранного сценария. Перед сохранением редактор проверяет уникальность ID и корректность ссылок между событиями, стратегиями и атрибутами.</p>
+<p class="intro">Изменения сохраняются в JSON-файл выбранного сценария. Перед сохранением движок проверяет уникальность ID, длину векторов весов и корректность ссылок между событиями, стратегиями и атрибутами. Порядок весов: базовые атрибуты, затем настраиваемые.</p>
 <div id="editor"></div>
 <script>
 'use strict';
@@ -375,9 +375,9 @@ function attributeOptions(selected) {
 function prerequisitesHTML(value) {
   const req = value || {};
   return '<div class="subpanel"><h3>Предварительные условия</h3><div class="requirements">' +
-    '<label class="field"><span>События (требуются все)</span><select class="multi req-events" multiple>' + idOptions(game.Events, req.Events) + '</select></label>' +
-    '<label class="field"><span>Стратегии (должны быть активны все)</span><select class="multi req-strategies" multiple>' + idOptions(game.Strategies, req.Strategies) + '</select></label>' +
-    '</div><p class="muted">Удерживайте Ctrl (или Cmd), чтобы выбрать несколько пунктов.</p></div>';
+    '<label class="field"><span>События (достаточно любого одного)</span><select class="multi req-events" multiple>' + idOptions(game.Events, req.Events) + '</select></label>' +
+    '<label class="field"><span>Стратегии (достаточно любой одной активной)</span><select class="multi req-strategies" multiple>' + idOptions(game.Strategies, req.Strategies) + '</select></label>' +
+    '</div><p class="muted">Внутри каждого списка действует «ИЛИ». Если оба списка заполнены, необходимо выполнить хотя бы одно условие из каждого: (любое событие) И (любая стратегия). Пустой список не накладывает ограничений. Удерживайте Ctrl (или Cmd), чтобы выбрать несколько пунктов.</p></div>';
 }
 function valuesFrom(element) {
   return element ? [...element.selectedOptions].map(option => Number(option.value)) : [];
@@ -398,14 +398,21 @@ function attributeChangeHTML(change, index, prefix) {
 function weightEditor(event) {
   const weights = arr(event.Weights);
   const attributes = allAttributes();
-  const count = Math.max(weights.length, attributes.length);
-  if (!count) return '<p class="muted">Атрибуты не заданы. Вектор весов пуст.</p>';
+  const count = attributes.length;
+  if (!count) {
+    return '<p class="muted">Атрибуты не заданы. Вектор весов должен быть пустым.</p>';
+  }
+
   let html = '';
   for (let i = 0; i < count; i++) {
-    const title = attributes[i] ? attributes[i].ID + ' — ' + attributes[i].Name : 'Дополнительный индекс ' + (i + 1);
+    const title = attributes[i].ID + ' — ' + attributes[i].Name;
     html += '<label class="weight-row"><span>' + esc(title) + '</span><input type="number" step="any" data-weight-index="' + i + '" value="' + Number(weights[i] ?? 0) + '"></label>';
   }
-  return html + '<p class="muted">Порядок: сначала базовые атрибуты, затем настраиваемые. Если вектор был короче списка атрибутов, недостающие значения будут сохранены как 0.</p>';
+
+  const mismatch = weights.length !== count
+    ? '<p class="muted" style="color:#a22">В исходном векторе ' + weights.length + ' значений, требуется ровно ' + count + '. При сохранении будет записано ровно ' + count + ' значений; недостающие будут равны 0.</p>'
+    : '';
+  return html + mismatch + '<p class="muted">Порядок строго фиксирован: сначала базовые атрибуты в порядке списка, затем настраиваемые атрибуты в порядке списка. Длина Weights должна точно совпадать с общим количеством атрибутов.</p>';
 }
 function imageSource(url) {
   if (!url) return '';
@@ -423,7 +430,7 @@ function eventEditor(event) {
     '<div class="field-grid">' +
       '<label class="field"><span>ID</span><input data-field="ID" type="number" step="1" value="' + Number(event.ID ?? 0) + '"></label>' +
       '<label class="field"><span>Название</span><input data-field="Name" value="' + esc(event.Name) + '"></label>' +
-      '<label class="field"><span>Итерация</span><input data-field="Iteration" type="number" step="1" value="' + Number(event.Iteration ?? 0) + '"></label>' +
+      '<label class="field"><span>Итерация (0 — доступно на любой итерации)</span><input data-field="Iteration" type="number" step="1" value="' + Number(event.Iteration ?? 0) + '"></label>' +
       '<label class="field"><span>Ветка</span><select data-field="Branch"><option value="">— не выбрана —</option>' + options(branches, event.Branch || '') + '</select></label>' +
       '<label class="field"><span>BasicPower</span><input data-field="BasicPower" type="number" step="any" value="' + Number(event.BasicPower ?? 0) + '"></label>' +
       '<label class="check"><input data-field="IsPositive" type="checkbox" ' + (event.IsPositive ? 'checked' : '') + '><span>Положительное событие</span></label>' +
@@ -532,7 +539,7 @@ function render() {
     '<section class="panel"><h2>Настройки игры</h2><div class="field-grid">' +
       '<label class="field"><span>Ветки (через запятую)</span><input id="branches" value="' + esc(arr(game.Branches).join(', ')) + '"></label>' +
       '<label class="field"><span>ID стартового события</span><input id="opening-event" type="number" value="' + Number(game.OpeningEvent ?? 0) + '"></label>' +
-      '<label class="field"><span>Максимум событий за ход</span><input id="max-events" type="number" min="0" value="' + Number(game.MaxEventsPerTurn ?? 0) + '"></label>' +
+      '<label class="field"><span>Минимальная сумма вероятностей (MinProbabilitySum)</span><input id="min-probability-sum" type="number" min="0" step="any" value="' + Number(game.MinProbabilitySum ?? 0) + '"></label>' +
       '<label class="field"><span>Начальные деньги</span><input id="initial-money" type="number" value="' + Number(budget.InitialMoney ?? 0) + '"></label>' +
       '<label class="field"><span>Максимум денег</span><input id="max-money" type="number" value="' + Number(budget.MaxMoney ?? 0) + '"></label>' +
       '<label class="field"><span>Начальные очки качества</span><input id="initial-qp" type="number" value="' + Number(budget.InitialQP ?? 0) + '"></label>' +
@@ -553,23 +560,53 @@ function render() {
 function collectSetup() {
   game.Branches = ($('branches')?.value || '').split(',').map(value => value.trim()).filter(Boolean);
   game.OpeningEvent = Number($('opening-event')?.value || 0);
-  game.MaxEventsPerTurn = Number($('max-events')?.value || 0);
+  game.MinProbabilitySum = Number($('min-probability-sum')?.value || 0);
+  if (!Number.isFinite(game.MinProbabilitySum) || game.MinProbabilitySum < 0) {
+    throw new Error('MinProbabilitySum должен быть конечным неотрицательным числом');
+  }
   game.StartingBudget = game.StartingBudget || {};
   game.StartingBudget.InitialMoney = Number($('initial-money')?.value || 0);
   game.StartingBudget.MaxMoney = Number($('max-money')?.value || 0);
   game.StartingBudget.InitialQP = Number($('initial-qp')?.value || 0);
 }
 function collectAttributes() {
+  const updates = [];
+  const idMap = new Map();
+
   document.querySelectorAll('.attribute-card').forEach(card => {
     const index = Number(card.dataset.index);
     const configurable = card.dataset.configurable === 'true';
     const item = (configurable ? arr(game.ConfigurableAttributes) : arr(game.BasicAttributes))[index];
     if (!item) return;
+
+    const fields = {};
     card.querySelectorAll('[data-field]').forEach(input => {
       const field = input.dataset.field;
-      item[field] = ['ID','DefaultValue','MinValue','MaxValue','CostPerUnit'].includes(field) ? Number(input.value) : input.value;
+      fields[field] = ['ID','DefaultValue','MinValue','MaxValue','CostPerUnit'].includes(field)
+        ? Number(input.value)
+        : input.value;
     });
+
+    const oldID = Number(item.ID);
+    const newID = Number(fields.ID);
+    if (oldID !== newID) idMap.set(oldID, newID);
+    updates.push({item, fields});
   });
+
+  // Keep all references in sync when an attribute ID is edited. Weight
+  // coordinates are positional, so their order does not change here.
+  if (idMap.size) {
+    const remap = id => idMap.has(Number(id)) ? idMap.get(Number(id)) : Number(id);
+    arr(game.Events).forEach(event => {
+      arr(event.Thresholds).forEach(threshold => { threshold.AttributeID = remap(threshold.AttributeID); });
+      arr(event.AttributeChanges).forEach(change => { change.AttributeID = remap(change.AttributeID); });
+    });
+    arr(game.Strategies).forEach(strategy => {
+      arr(strategy.AttributeChanges).forEach(change => { change.AttributeID = remap(change.AttributeID); });
+    });
+  }
+
+  updates.forEach(({item, fields}) => Object.assign(item, fields));
 }
 function collectPrerequisites(card) {
   return {Events: valuesFrom(card.querySelector('.req-events')), Strategies: valuesFrom(card.querySelector('.req-strategies'))};
@@ -632,10 +669,12 @@ function collectSelectedHint() {
 }
 function collect() {
   collectSetup();
-  collectAttributes();
+  // Collect editor fields before remapping attribute IDs so references from
+  // the currently visible event/strategy are updated together with the data.
   collectSelectedEvent();
   collectSelectedStrategy();
   collectSelectedHint();
+  collectAttributes();
 }
 function nextID(items) {
   return arr(items).reduce((max, item) => Math.max(max, Number(item.ID) || 0), -1) + 1;

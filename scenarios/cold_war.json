@@ -1110,5 +1110,5 @@
     "InitialQP": 20
   },
   "OpeningEvent": 0,
-  "MaxEventsPerTurn": 4
+  "MinProbabilitySum": 100
 }

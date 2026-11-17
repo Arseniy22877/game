@@ -209,11 +209,17 @@ func (g *GameState) PickEventFromBranch(probs []ProbResult, branch Branch) (Prob
 			temp = append(temp, probability)
 		}
 	}
-
+	sum := 0.0
+	for _, el := range temp {
+		sum += max(0, el.Probability)
+	}
+	if sum < g.GameData.MinProbabilitySum {
+		return ProbResult{}, errors.New("No events for branch")
+	}
 	normalized := normalize(temp)
 	picked, ok := pick(normalized)
 	if !ok {
-		return ProbResult{}, fmt.Errorf("no probable events for branch %q", branch)
+		return ProbResult{}, errors.New("No events for branch")
 	}
 	return picked, nil
 }
