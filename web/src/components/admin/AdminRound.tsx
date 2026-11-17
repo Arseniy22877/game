@@ -406,6 +406,14 @@ export function AdminRound({ state, onUpdate }: Props) {
                     </span>
                     <h2 className="text-2xl font-bold text-slate-900 mt-1">{selectedTeam.name}</h2>
                     <p className="text-sm text-slate-500 mt-1">{selectedTeam.members.join(', ')}</p>
+                    {selectedTeam.token && (
+                      <div className="mt-2 text-xs text-slate-500 flex items-center gap-2">
+                        <span>Ссылка для подключения:</span>
+                        <code className="bg-slate-100 text-slate-800 font-mono px-2 py-0.5 rounded select-all">
+                          /?token={selectedTeam.token}
+                        </code>
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${

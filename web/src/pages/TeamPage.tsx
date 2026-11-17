@@ -175,7 +175,15 @@ export function TeamPage() {
 
   // Игра началась, но токена нет
   if (!hasToken || !team) {
-    return <TeamWaiting message="Игра уже началась. Обратитесь к преподавателю за ссылкой для входа." />;
+    return (
+      <TeamWaiting
+        message="Игра уже началась. Если ваша команда уже в игре, перейдите по ссылке от преподавателя или введите токен ниже."
+        onEnterToken={(t) => {
+          api.setTeamToken(t);
+          loadState();
+        }}
+      />
+    );
   }
 
   // Игра завершена
