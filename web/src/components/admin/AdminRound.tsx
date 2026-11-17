@@ -27,6 +27,7 @@ export function AdminRound({ state, onUpdate }: Props) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(
     uniqueTeams.length > 0 ? Number(uniqueTeams[0].id) : null
   );
@@ -407,9 +408,35 @@ export function AdminRound({ state, onUpdate }: Props) {
                     <h2 className="text-2xl font-bold text-slate-900 mt-1">{selectedTeam.name}</h2>
                     <p className="text-sm text-slate-500 mt-1">{selectedTeam.members.join(', ')}</p>
                     {selectedTeam.token && (
-                      <div className="mt-2 text-xs text-slate-500 flex items-center gap-2">
-                        <span>Ссылка для подключения:</span>
-                        <code className="bg-slate-100 text-slate-800 font-mono px-2 py-0.5 rounded select-all">
+                      <div className="mt-2.5 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                            const fullUrl = `${origin}/?token=${selectedTeam.token}`;
+                            if (navigator?.clipboard?.writeText) {
+                              navigator.clipboard.writeText(fullUrl).catch(() => {});
+                            }
+                            setCopiedTokenId(Number(selectedTeam.id));
+                            setTimeout(() => setCopiedTokenId(null), 2000);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                            copiedTokenId === Number(selectedTeam.id)
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                          }`}
+                          title="Скопировать ссылку для входа команды в буфер обмена"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          <span>
+                            {copiedTokenId === Number(selectedTeam.id)
+                              ? 'Ссылка скопирована ✓'
+                              : 'Скопировать ссылку для входа'}
+                          </span>
+                        </button>
+                        <code className="text-[11px] font-mono text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg select-all">
                           /?token={selectedTeam.token}
                         </code>
                       </div>

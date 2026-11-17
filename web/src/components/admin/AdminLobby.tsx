@@ -217,7 +217,17 @@ function TeamLobbyCard({
   team: TeamSummary & { token?: string };
   onDelete: () => void;
 }) {
-  const [showToken, setShowToken] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const fullUrl = `${origin}/?token=${team.token}`;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(fullUrl).catch(() => {});
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm flex flex-col justify-between">
@@ -265,24 +275,31 @@ function TeamLobbyCard({
         ))}
       </div>
 
-      {/* Подвал с токеном / ссылкой для входа */}
+      {/* Подвал с токеном / ссылкой для входа (с автокопированием) */}
       {team.token && (
-        <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+        <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs gap-2">
           <button
             type="button"
-            onClick={() => setShowToken(!showToken)}
-            className="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-1.5"
+            onClick={handleCopyLink}
+            className={`font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+              copied ? 'text-emerald-600' : 'text-slate-600 hover:text-slate-900'
+            }`}
+            title="Скопировать ссылку для подключения команды"
           >
-            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-            <span>{showToken ? 'Скрыть ссылку' : 'Ссылка для входа'}</span>
+            {copied ? (
+              <span className="font-bold">✓ Ссылка скопирована!</span>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <span>Скопировать ссылку</span>
+              </>
+            )}
           </button>
-          {showToken && (
-            <span className="font-mono text-slate-600 select-all">
-              /?token={team.token}
-            </span>
-          )}
+          <span className="font-mono text-[11px] text-slate-500 truncate max-w-[140px] select-all">
+            /?token={team.token}
+          </span>
         </div>
       )}
     </div>
