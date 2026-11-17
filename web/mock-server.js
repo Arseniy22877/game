@@ -81,7 +81,7 @@ function createInitialTeamState(teamId) {
 }
 
 // Изолированные состояния для каждой команды
-const teamStates = {
+let teamStates = {
   1: createInitialTeamState(1),
   2: createInitialTeamState(2),
 };
@@ -311,8 +311,31 @@ const server = http.createServer(async (req, res) => {
       baseRoundCost: 5,
     };
     decisions = {};
+    teams = [
+      {
+        id: 1,
+        name: 'Альфа',
+        members: ['Алексей Иванов', 'Мария Смирнова'],
+        ready: true,
+        online: false,
+        submitted: false,
+        bankrupt: false,
+        token: 'token-alpha-123',
+      },
+      {
+        id: 2,
+        name: 'Бета',
+        members: ['Дмитрий Кузнецов', 'Елена Попова'],
+        ready: true,
+        online: false,
+        submitted: false,
+        bankrupt: false,
+        token: 'token-beta-456',
+      },
+    ];
+    teamStates = {};
+    teamPredictions = {};
     teams.forEach((t) => {
-      t.submitted = false;
       teamStates[t.id] = createInitialTeamState(t.id);
       teamPredictions[t.id] = [];
     });
