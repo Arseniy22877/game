@@ -19,8 +19,10 @@ export function AdminLogin({ onLogin }: Props) {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-slate-200 p-8 space-y-6">
         <div className="text-center">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-xl shadow-sm">
-            🎓
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+            <svg className="w-6 h-6 text-slate-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
           </div>
           <h1 className="text-xl font-bold text-slate-900">Вход для преподавателя</h1>
           <p className="text-xs text-slate-500 mt-1">Управление сессиями симуляции</p>

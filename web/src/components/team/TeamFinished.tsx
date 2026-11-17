@@ -12,8 +12,10 @@ export function TeamFinished({ state }: Props) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center space-y-6">
-        <div className="w-16 h-16 mx-auto rounded-full bg-slate-900 text-white flex items-center justify-center text-2xl font-bold shadow-sm">
-          🏁
+        <div className="w-16 h-16 mx-auto rounded-full bg-slate-900 text-white flex items-center justify-center shadow-sm">
+          <svg className="w-8 h-8 text-slate-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+          </svg>
         </div>
 
         <div>
@@ -27,13 +29,13 @@ export function TeamFinished({ state }: Props) {
             <div className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
               <span className="text-xs font-semibold text-slate-600">Остаток бюджета</span>
               <span className="font-bold font-mono text-emerald-600 text-sm">
-                💰 {gameState.budget.money} K $
+                {gameState.budget.money} K $
               </span>
             </div>
             <div className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
               <span className="text-xs font-semibold text-slate-600">Очки исследований</span>
               <span className="font-bold font-mono text-cyan-600 text-sm">
-                🔬 {gameState.budget.qp} QP
+                {gameState.budget.qp} QP
               </span>
             </div>
             {gameState.attributes.map((attr) => (

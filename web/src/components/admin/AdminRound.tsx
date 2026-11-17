@@ -365,9 +365,16 @@ export function AdminRound({ state, onUpdate }: Props) {
                                   : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 shadow-sm'
                               }`}
                             >
-                              <div className="space-y-1 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span>{pred.event.isPositive ? '✅' : '⚠️'}</span>
+                              <div className="space-y-1.5 flex-1">
+                                <div className="flex items-center gap-2.5">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${
+                                    pred.event.isPositive
+                                      ? isFixed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                                      : isFixed ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${pred.event.isPositive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                    {pred.event.isPositive ? 'Позитивное' : 'Риск'}
+                                  </span>
                                   <span className="font-bold text-base">{pred.event.name}</span>
                                 </div>
                                 <p className={`text-xs leading-relaxed ${isFixed ? 'text-slate-300' : 'text-slate-500'}`}>

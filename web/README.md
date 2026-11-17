@@ -1,27 +1,66 @@
-# React + TypeScript + Vite
+# Фронтенд: «Мастерская по созданию игр»
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Клиентское веб-приложение многопользовательской бизнес-симуляции (формат Jackbox) для студентов и преподавателя.
 
-Currently, two official plugins are available:
+## Стек технологий
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 18** + **TypeScript**
+- **Vite** (сборщик и dev-сервер с HMR)
+- **Tailwind CSS** (минималистичный дизайн в стиле Linear / SaaS)
+- **WebSocket + REST** клиент с авто-переподключением и fallback polling для максимальной надёжности на мобильных и десктопных устройствах
 
-## Expanding the ESLint configuration
+## Экраны и структура
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+1. **Лобби преподавателя (`/admin`):**
+   - Авторизация по токену преподавателя (`ADMIN_TOKEN`).
+   - Выбор сценария симуляции из каталога.
+   - Список подключённых команд с динамическим статусом готовности (`✓` / `✕`).
+   - Запуск симуляции при готовности всех команд.
 
-- Configure the top-level `parserOptions` property like this:
+2. **Лобби команды (`/`):**
+   - Регистрация команды: название и список участников (до 10 человек).
+   - Индивидуальный токен авторизации команды с поддержкой входа по ссылке (`/?token=...`).
+   - Кнопка подтверждения/снятия готовности к игре.
 
-```js
-   parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-   },
+3. **Игровой стол команды (`/` в раунде):**
+   - Вводное модальное окно сценария и модальные окна наступивших событий за раунд.
+   - Слайдеры бюджетирования по сферам деятельности в тыс. $.
+   - Выбор доступных бизнес-стратегий с подсветкой и расчётом стоимости.
+   - Покупка и изучение исследований за очки QP (с просмотром инсайтов в модальном окне).
+   - Форма рефлексии и отчёта команды из 4 вопросов.
+   - Сайдбар с контролем остатка бюджета, QP и динамическими индикаторами компании.
+   - Модальное окно полной истории событий по раундам.
+
+4. **Панель управления раундом преподавателя (`/admin` в раунде):**
+   - Мониторинг статуса сдачи решений всеми командами в реальном времени.
+   - Завершение раунда с просмотром детальных решений каждой команды.
+   - Индивидуальный выбор наступивших событий с отображением расчетных вероятностей движка.
+   - Переход к следующему раунду или завершение игры.
+   - Выставление финальных оценок по 6 ключевым навыкам с комментариями.
+
+## Запуск в разработке
+
+### 1. Локальный мок-сервер (порт 8080)
+Мок-сервер воспроизводит полный REST API и WebSocket-хаб бэкенда для автономной разработки и проверки фронтенда:
+
+```bash
+npm run mock
 ```
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+### 2. Dev-сервер фронтенда (порт 3000)
+
+```bash
+npm run dev
+```
+
+Приложение доступно по адресу: [http://localhost:3000](http://localhost:3000). Прокси `/api` и `/ws` автоматически настроены на порт 8080.
+
+## Проверка качества кода
+
+```bash
+# Проверка типов и линтинг (0 errors, 0 warnings)
+npm run lint
+
+# Сборка production bundle
+npm run build
+```

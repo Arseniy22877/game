@@ -474,8 +474,11 @@ export function TeamGame({ state, onUpdate }: Props) {
                   Затраты на раунд: {moneySpent} K $
                 </div>
                 {moneyOver && (
-                  <div className="text-xs font-semibold text-rose-500 mt-1">
-                    ⚠ Превышен лимит доступных средств!
+                  <div className="text-xs font-semibold text-rose-600 mt-2 flex items-center gap-1.5 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                    <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>Превышен лимит доступных средств</span>
                   </div>
                 )}
               </div>
@@ -487,8 +490,11 @@ export function TeamGame({ state, onUpdate }: Props) {
                   {remainingQP} / {gameState.budget.qp} QP
                 </div>
                 {qpOver && (
-                  <div className="text-xs font-semibold text-rose-500 mt-1">
-                    ⚠ Не хватает очков QP на выбранные исследования!
+                  <div className="text-xs font-semibold text-rose-600 mt-2 flex items-center gap-1.5 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                    <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>Недостаточно QP на исследования</span>
                   </div>
                 )}
               </div>
@@ -570,9 +576,16 @@ function EventModal({
                   : 'border-rose-200 bg-rose-50/50 text-rose-950'
               }`}
             >
-              <div className="flex items-center gap-2 mb-2 font-bold text-base">
-                <span>{ev.isPositive ? '✅' : '⚠️'}</span>
-                <span>{ev.name}</span>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${
+                  ev.isPositive
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border border-rose-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${ev.isPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                  {ev.isPositive ? 'Позитивное' : 'Риск'}
+                </span>
+                <span className="font-bold text-base text-slate-900">{ev.name}</span>
               </div>
               <p className="text-sm leading-relaxed text-slate-700">{ev.description}</p>
             </div>
