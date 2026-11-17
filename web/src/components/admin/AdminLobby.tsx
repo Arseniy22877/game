@@ -82,7 +82,9 @@ export function AdminLobby({ state, onUpdate }: Props) {
     }
   };
 
-  const allReady = teams.length > 0 && teams.every((t) => t.ready);
+  // Гарантированная дедупликация команд по уникальному ID
+  const uniqueTeams = Array.from(new Map(teams.map((t) => [t.id, t])).values());
+  const allReady = uniqueTeams.length > 0 && uniqueTeams.every((t) => t.ready);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -149,17 +151,17 @@ export function AdminLobby({ state, onUpdate }: Props) {
             <div>
               <h2 className="text-lg font-bold text-slate-900">Команды в игре</h2>
               <p className="text-xs text-slate-500">
-                Зарегистрировано: {teams.length} | Готовы: {teams.filter((t) => t.ready).length}
+                Зарегистрировано: {uniqueTeams.length} | Готовы: {uniqueTeams.filter((t) => t.ready).length}
               </p>
             </div>
-            {teams.length > 0 && !allReady && (
+            {uniqueTeams.length > 0 && !allReady && (
               <span className="text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
                 Ожидание готовности всех команд
               </span>
             )}
           </div>
 
-          {teams.length === 0 ? (
+          {uniqueTeams.length === 0 ? (
             <div className="text-center py-16 border-2 border-dashed border-slate-200 rounded-3xl">
               <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -173,7 +175,7 @@ export function AdminLobby({ state, onUpdate }: Props) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {teams.map((t) => (
+              {uniqueTeams.map((t) => (
                 <TeamLobbyCard
                   key={t.id}
                   team={t}
@@ -197,7 +199,7 @@ export function AdminLobby({ state, onUpdate }: Props) {
           >
             {loading ? 'Запуск симуляции...' : 'Начать'}
           </button>
-          {!allReady && teams.length > 0 && (
+          {!allReady && uniqueTeams.length > 0 && (
             <div className="text-center text-xs text-slate-400 mt-2">
               Для запуска игры необходимо, чтобы все зарегистрированные команды были в статусе «Готовы»
             </div>

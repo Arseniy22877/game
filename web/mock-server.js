@@ -138,8 +138,9 @@ function broadcast(type, payload) {
 
 function broadcastToTeam(teamId, type, payload) {
   const msg = JSON.stringify({ type, payload });
+  const targetId = Number(teamId);
   for (const client of clients) {
-    if (client.teamId === teamId && client.ws.readyState === WebSocket.OPEN) {
+    if (Number(client.teamId) === targetId && client.ws.readyState === WebSocket.OPEN) {
       try {
         client.ws.send(msg);
       } catch (e) {
@@ -196,16 +197,26 @@ const server = http.createServer(async (req, res) => {
   // --- POST /api/teams (Регистрация команды) ---
   if (method === 'POST' && path === '/api/teams') {
     const body = await parseBody(req);
-    const newId = teams.length + 1;
+    const trimmedName = (body.name || '').trim();
+    if (!trimmedName) {
+      return sendJson(res, 400, { error: { code: 'validation_error', message: 'Введите название команды' } });
+    }
+    // Предотвращаем дублирование команд по имени
+    if (teams.some((t) => t.name.toLowerCase() === trimmedName.toLowerCase())) {
+      return sendJson(res, 409, { error: { code: 'team_name_taken', message: 'Команда с таким названием уже зарегистрирована' } });
+    }
+
+    // Гарантированно уникальный ID, не зависящий от удалений
+    const newId = teams.reduce((max, t) => Math.max(max, Number(t.id)), 0) + 1;
     const newTeam = {
       id: newId,
-      name: body.name || `Команда ${newId}`,
-      members: body.members || ['Участник 1'],
+      name: trimmedName,
+      members: Array.isArray(body.members) && body.members.length > 0 ? body.members : ['Участник 1'],
       ready: typeof body.ready === 'boolean' ? body.ready : false,
       online: true,
       submitted: false,
       bankrupt: false,
-      token: `token-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      token: `token-${newId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     };
     teams.push(newTeam);
     teamStates[newId] = createInitialTeamState(newId);
@@ -220,23 +231,23 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req);
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace(/^Bearer\s+/, '').trim();
-    const team = teams.find((t) => t.token === token) || teams[0];
-    if (team) {
-      team.ready = typeof body.ready === 'boolean' ? body.ready : !team.ready;
-      broadcast('lobby_updated', { teams });
-      return sendJson(res, 200, team);
+    const team = teams.find((t) => t.token === token);
+    if (!team) {
+      return sendJson(res, 401, { error: { code: 'unauthorized', message: 'Не авторизован: токен команды не найден' } });
     }
-    return sendJson(res, 404, { error: { code: 'not_found', message: 'Team not found' } });
+    team.ready = typeof body.ready === 'boolean' ? body.ready : !team.ready;
+    broadcast('lobby_updated', { teams });
+    return sendJson(res, 200, team);
   }
 
   // --- GET /api/team/state ---
   if (method === 'GET' && path === '/api/team/state') {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace(/^Bearer\s+/, '').trim();
-    const currentTeam = teams.find((t) => t.token === token) || teams[0];
+    const currentTeam = teams.find((t) => t.token === token);
 
     if (!currentTeam) {
-      return sendJson(res, 401, { error: { code: 'unauthorized', message: 'Unauthorized' } });
+      return sendJson(res, 401, { error: { code: 'unauthorized', message: 'Не авторизован: неверный или отсутствующий токен команды' } });
     }
 
     const tState = teamStates[currentTeam.id] || createInitialTeamState(currentTeam.id);
@@ -261,39 +272,41 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req);
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace(/^Bearer\s+/, '').trim();
-    const currentTeam = teams.find((t) => t.token === token) || teams[0];
+    const currentTeam = teams.find((t) => t.token === token);
 
-    if (currentTeam) {
-      decisions[currentTeam.id] = body;
-      currentTeam.submitted = true;
-
-      const tState = teamStates[currentTeam.id];
-      let moneyCost = gameState.baseRoundCost;
-      if (body.attributes && tState) {
-        body.attributes.forEach((a) => {
-          const cfg = tState.configurable.find((x) => x.id === a.id);
-          if (cfg) moneyCost += Math.round(a.value * cfg.costPerUnit);
-        });
-      }
-      if (body.strategies && tState) {
-        body.strategies.forEach((sid) => {
-          const strat = tState.strategies.find((x) => x.id === sid);
-          if (strat) moneyCost += strat.cost;
-        });
-      }
-
-      let qpCost = 0;
-      if (body.hints && tState) {
-        body.hints.forEach((hid) => {
-          const hint = tState.hints.find((x) => x.id === hid);
-          if (hint) qpCost += hint.cost;
-        });
-      }
-
-      broadcast('submission_updated', { teamId: currentTeam.id, submitted: true });
-      return sendJson(res, 200, { cost: { money: moneyCost, qp: qpCost } });
+    if (!currentTeam) {
+      return sendJson(res, 401, { error: { code: 'unauthorized', message: 'Не авторизован: неверный токен команды' } });
     }
-    return sendJson(res, 404, { error: { code: 'not_found', message: 'Team not found' } });
+
+    decisions[currentTeam.id] = body;
+    currentTeam.submitted = true;
+
+    const tState = teamStates[currentTeam.id] || createInitialTeamState(currentTeam.id);
+    teamStates[currentTeam.id] = tState;
+    let moneyCost = gameState.baseRoundCost;
+    if (body.attributes && tState) {
+      body.attributes.forEach((a) => {
+        const cfg = tState.configurable.find((x) => x.id === a.id);
+        if (cfg) moneyCost += Math.round(a.value * cfg.costPerUnit);
+      });
+    }
+    if (body.strategies && tState) {
+      body.strategies.forEach((sid) => {
+        const strat = tState.strategies.find((x) => x.id === sid);
+        if (strat) moneyCost += strat.cost;
+      });
+    }
+
+    let qpCost = 0;
+    if (body.hints && tState) {
+      body.hints.forEach((hid) => {
+        const hint = tState.hints.find((x) => x.id === hid);
+        if (hint) qpCost += hint.cost;
+      });
+    }
+
+    broadcast('submission_updated', { teamId: currentTeam.id, submitted: true });
+    return sendJson(res, 200, { cost: { money: moneyCost, qp: qpCost } });
   }
 
   // --- GET /api/admin/scenarios ---
@@ -422,7 +435,7 @@ const server = http.createServer(async (req, res) => {
     } else {
       // ИНДИВИДУАЛЬНО ДЛЯ КАЖДОЙ КОМАНДЫ применяем события и пересчитываем показатели
       for (const sel of selections) {
-        const teamId = sel.teamId;
+        const teamId = Number(sel.teamId);
         const tState = teamStates[teamId];
         if (!tState) continue;
 

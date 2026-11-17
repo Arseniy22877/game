@@ -49,6 +49,37 @@ function setStorageItem(key: string, val: string | null): void {
   }
 }
 
+// Сессионное хранилище строго для командных токенов:
+// предотвращает смешивание состояния разных команд при открытии нескольких вкладок в одном браузере.
+function getSessionItem(key: string): string | null {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem(key);
+    }
+  } catch {
+    // ignore storage restrictions
+  }
+  return null;
+}
+
+function setSessionItem(key: string, val: string | null): void {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      if (val) {
+        sessionStorage.setItem(key, val);
+      } else {
+        sessionStorage.removeItem(key);
+      }
+    }
+    // Удаляем из localStorage, чтобы старые общие токены не мешали независимым сессиям
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore storage restrictions
+  }
+}
+
 class ApiClient {
   private teamToken: string | null = null;
   private adminToken: string | null = null;
@@ -57,12 +88,12 @@ class ApiClient {
 
   setTeamToken(token: string | null) {
     this.teamToken = token;
-    setStorageItem('teamToken', token);
+    setSessionItem('teamToken', token);
   }
 
   getTeamToken(): string | null {
     if (!this.teamToken) {
-      this.teamToken = getStorageItem('teamToken');
+      this.teamToken = getSessionItem('teamToken');
     }
     return this.teamToken;
   }
@@ -81,7 +112,7 @@ class ApiClient {
 
   clearTeamToken() {
     this.teamToken = null;
-    setStorageItem('teamToken', null);
+    setSessionItem('teamToken', null);
   }
 
   // --- Утилита ---

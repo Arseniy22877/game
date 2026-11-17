@@ -22,9 +22,23 @@ export function AdminRound({ state, onUpdate }: Props) {
   const isOpen = game.phase === 'round_open';
   const isClosed = game.phase === 'round_closed';
 
+  // Дедупликация команд по уникальному ID
+  const uniqueTeams = Array.from(new Map(teams.map((t) => [Number(t.id), t])).values());
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(teams.length > 0 ? teams[0].id : null);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(
+    uniqueTeams.length > 0 ? Number(uniqueTeams[0].id) : null
+  );
+
+  // Синхронизация selectedTeamId при обновлении или удалении команд
+  useEffect(() => {
+    if (uniqueTeams.length > 0) {
+      if (!selectedTeamId || !uniqueTeams.some((t) => Number(t.id) === Number(selectedTeamId))) {
+        setSelectedTeamId(Number(uniqueTeams[0].id));
+      }
+    }
+  }, [uniqueTeams, selectedTeamId]);
 
   // Выбранные события для команд: { [teamId]: Set(eventIds) }
   const [eventSelections, setEventSelections] = useState<Record<number, Set<number>>>({});
@@ -33,25 +47,26 @@ export function AdminRound({ state, onUpdate }: Props) {
   // Автоматическая инициализация рекомендованных событий СТРОГО 1 РАЗ на каждый вход в round_closed
   useEffect(() => {
     if (isClosed) {
-      const hasPredictions = teams.some((t) => (t.predictions || []).length > 0);
+      const hasPredictions = uniqueTeams.some((t) => (t.predictions || []).length > 0);
       if (hasPredictions && initializedRoundRef.current !== game.round) {
         const initial: Record<number, Set<number>> = {};
-        teams.forEach((t) => {
+        uniqueTeams.forEach((t) => {
           const suggested = (t.predictions || [])
             .filter((p) => p.suggested)
             .map((p) => p.event.id);
-          initial[t.id] = new Set(suggested);
+          initial[Number(t.id)] = new Set(suggested);
         });
         setEventSelections(initial);
         initializedRoundRef.current = game.round;
       }
     } else {
       initializedRoundRef.current = null;
+      setEventSelections({});
     }
-  }, [isClosed, game.round, teams]);
+  }, [isClosed, game.round, uniqueTeams]);
 
   const handleCloseRound = async (force: boolean) => {
-    const notSubmitted = teams.filter((t) => !t.submitted && !t.bankrupt);
+    const notSubmitted = uniqueTeams.filter((t) => !t.submitted && !t.bankrupt);
     if (!force && notSubmitted.length > 0) {
       const names = notSubmitted.map((t) => t.name).join(', ');
       if (!confirm(`Команды не сдали решение: ${names}. Завершить сбор решений принудительно?`)) {
@@ -75,36 +90,40 @@ export function AdminRound({ state, onUpdate }: Props) {
   };
 
   const toggleEvent = (teamId: number, eventId: number) => {
+    const tid = Number(teamId);
+    const eid = Number(eventId);
     setEventSelections((prev) => {
-      const current = new Set(prev[teamId] || []);
-      if (current.has(eventId)) {
-        current.delete(eventId);
+      const current = new Set(prev[tid] || []);
+      if (current.has(eid)) {
+        current.delete(eid);
       } else {
-        current.add(eventId);
+        current.add(eid);
       }
       return {
         ...prev,
-        [teamId]: current,
+        [tid]: current,
       };
     });
   };
 
   const selectSuggested = (teamId: number) => {
-    const t = teams.find((x) => x.id === teamId);
+    const tid = Number(teamId);
+    const t = uniqueTeams.find((x) => Number(x.id) === tid);
     if (!t) return;
     const suggested = (t.predictions || [])
       .filter((p) => p.suggested)
       .map((p) => p.event.id);
     setEventSelections((prev) => ({
       ...prev,
-      [teamId]: new Set(suggested),
+      [tid]: new Set(suggested),
     }));
   };
 
   const clearEvents = (teamId: number) => {
+    const tid = Number(teamId);
     setEventSelections((prev) => ({
       ...prev,
-      [teamId]: new Set(),
+      [tid]: new Set(),
     }));
   };
 
@@ -118,9 +137,9 @@ export function AdminRound({ state, onUpdate }: Props) {
       await api.applyEvents({
         round: game.round,
         finish,
-        selections: teams.map((t) => ({
-          teamId: t.id,
-          eventIds: Array.from(eventSelections[t.id] || []),
+        selections: uniqueTeams.map((t) => ({
+          teamId: Number(t.id),
+          eventIds: Array.from(eventSelections[Number(t.id)] || []),
         })),
       });
       onUpdate();
@@ -144,8 +163,8 @@ export function AdminRound({ state, onUpdate }: Props) {
     setLoading(false);
   };
 
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId) || teams[0];
-  const allSubmitted = teams.every((t) => t.submitted || t.bankrupt);
+  const selectedTeam = uniqueTeams.find((t) => Number(t.id) === Number(selectedTeamId)) || uniqueTeams[0] || null;
+  const allSubmitted = uniqueTeams.length > 0 && uniqueTeams.every((t) => t.submitted || t.bankrupt);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -164,7 +183,7 @@ export function AdminRound({ state, onUpdate }: Props) {
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Сценарий: {game.scenarioId} | Сдано решений: {teams.filter((t) => t.submitted).length} / {teams.length}
+              Сценарий: {game.scenarioId} | Сдано решений: {uniqueTeams.filter((t) => t.submitted).length} / {uniqueTeams.length}
             </p>
           </div>
 
@@ -214,6 +233,65 @@ export function AdminRound({ state, onUpdate }: Props) {
         </div>
       </header>
 
+      {/* Быстрое переключение команд (всегда доступно вверху экрана) */}
+      {uniqueTeams.length > 0 && (
+        <div className="bg-white border-b border-slate-200 sticky top-[65px] z-10 shadow-xs">
+          <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4 overflow-x-auto">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">
+                Команды:
+              </span>
+              {uniqueTeams.map((t) => {
+                const isSelected = Number(selectedTeam?.id) === Number(t.id);
+                const fixedEventsCount = (eventSelections[Number(t.id)] || new Set()).size;
+
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTeamId(Number(t.id))}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                      isSelected
+                        ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/10'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        t.online ? 'bg-emerald-500' : 'bg-slate-300'
+                      }`}
+                    />
+                    <span>{t.name}</span>
+                    {t.submitted ? (
+                      <span className={`text-[11px] font-black ${isSelected ? 'text-emerald-300' : 'text-emerald-600'}`}>
+                        ✓
+                      </span>
+                    ) : (
+                      <span className={`text-[11px] font-black ${isSelected ? 'text-rose-300' : 'text-rose-500'}`}>
+                        ✕
+                      </span>
+                    )}
+                    {isClosed && (
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] ${
+                        isSelected ? 'bg-slate-800 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                      }`}>
+                        {fixedEventsCount} соб.
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {isClosed && (
+              <div className="text-xs text-slate-500 hidden sm:block">
+                События выбираются <strong className="text-slate-800">индивидуально</strong> для каждой команды
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Ошибки */}
       {error && (
         <div className="max-w-7xl mx-auto px-4 mt-6 w-full">
@@ -236,16 +314,16 @@ export function AdminRound({ state, onUpdate }: Props) {
             </div>
 
             <div className="space-y-3">
-              {teams.map((t) => {
-                const isSelected = selectedTeam?.id === t.id;
-                const fixedEventsCount = (eventSelections[t.id] || new Set()).size;
+              {uniqueTeams.map((t) => {
+                const isSelected = Number(selectedTeam?.id) === Number(t.id);
+                const fixedEventsCount = (eventSelections[Number(t.id)] || new Set()).size;
 
                 return (
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setSelectedTeamId(t.id)}
-                    className={`w-full text-left p-5 rounded-3xl border transition-all flex items-center justify-between ${
+                    onClick={() => setSelectedTeamId(Number(t.id))}
+                    className={`w-full text-left p-5 rounded-3xl border transition-all flex items-center justify-between cursor-pointer ${
                       isSelected
                         ? 'bg-white border-slate-900 ring-2 ring-slate-900 shadow-md'
                         : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
@@ -266,7 +344,7 @@ export function AdminRound({ state, onUpdate }: Props) {
                       </div>
                       {isClosed && (
                         <div className={`text-xs font-semibold mt-2 ${fixedEventsCount > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
-                          {fixedEventsCount > 0 ? `Событий выбрано: ${fixedEventsCount}` : 'События не выбраны (0)'}
+                          {fixedEventsCount > 0 ? `Событий зафиксировано: ${fixedEventsCount}` : 'События не выбраны (0)'}
                         </div>
                       )}
                     </div>
@@ -296,6 +374,30 @@ export function AdminRound({ state, onUpdate }: Props) {
           <div className="lg:col-span-8">
             {selectedTeam ? (
               <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm space-y-8">
+                {/* Подсказка о выбранной команде и переключение */}
+                {uniqueTeams.length > 1 && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-xs">
+                    <span className="text-slate-600">
+                      Текущий просмотр: <strong className="text-slate-900">{selectedTeam.name}</strong>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Переключить на:</span>
+                      {uniqueTeams
+                        .filter((t) => Number(t.id) !== Number(selectedTeam.id))
+                        .map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedTeamId(Number(t.id))}
+                            className="px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg font-bold text-slate-800 transition-colors"
+                          >
+                            {t.name} →
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Заголовок выбранной команды */}
                 <div className="border-b border-slate-100 pb-6 flex items-start justify-between">
                   <div>
@@ -325,21 +427,21 @@ export function AdminRound({ state, onUpdate }: Props) {
                           События для команды «{selectedTeam.name}»
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          Нажмите на карточку события для фиксации. Зафиксировано: {(eventSelections[selectedTeam.id] || new Set()).size}
+                          Нажмите на карточку события для фиксации. Зафиксировано: {(eventSelections[Number(selectedTeam.id)] || new Set()).size}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => selectSuggested(selectedTeam.id)}
-                          className="text-xs font-semibold px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl transition-colors"
+                          className="text-xs font-semibold px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl transition-colors cursor-pointer"
                         >
                           Рекомендованные
                         </button>
                         <button
                           type="button"
                           onClick={() => clearEvents(selectedTeam.id)}
-                          className="text-xs font-semibold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors"
+                          className="text-xs font-semibold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer"
                         >
                           Очистить (0)
                         </button>
@@ -351,7 +453,7 @@ export function AdminRound({ state, onUpdate }: Props) {
                         <p className="text-sm text-slate-400 italic py-4">Событий для этой команды не спрогнозировано.</p>
                       ) : (
                         selectedTeam.predictions.map((pred) => {
-                          const isFixed = (eventSelections[selectedTeam.id] || new Set()).has(pred.event.id);
+                          const isFixed = (eventSelections[Number(selectedTeam.id)] || new Set()).has(pred.event.id);
                           const pct = Math.round(pred.probability * 100);
 
                           return (
@@ -359,7 +461,7 @@ export function AdminRound({ state, onUpdate }: Props) {
                               key={pred.event.id}
                               type="button"
                               onClick={() => toggleEvent(selectedTeam.id, pred.event.id)}
-                              className={`w-full text-left p-5 rounded-2xl border transition-all flex items-start justify-between gap-4 ${
+                              className={`w-full text-left p-5 rounded-2xl border transition-all flex items-start justify-between gap-4 cursor-pointer ${
                                 isFixed
                                   ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20'
                                   : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 shadow-sm'
