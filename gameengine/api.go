@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -43,6 +44,49 @@ func GetGameInstance(id string) (GameState, error) {
 	state := game.CreateInstance()
 	state.ID = id
 	return state, nil
+}
+
+// GetAvailableStrategies returns strategies whose prerequisites are met.
+func (g *GameState) GetAvailableStrategies() []StrategyState {
+	if g == nil {
+		return nil
+	}
+
+	result := make([]StrategyState, 0, len(g.Strategies))
+	for _, strategy := range g.Strategies {
+		if strategy.StrategyData != nil &&
+			g.strategyAvailable(strategy.StrategyData) {
+			result = append(result, strategy)
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].StrategyData.ID < result[j].StrategyData.ID
+	})
+
+	return result
+}
+
+// GetAvailableHints returns unused hints whose prerequisites are met.
+func (g *GameState) GetAvailableHints() []HintState {
+	if g == nil {
+		return nil
+	}
+
+	result := make([]HintState, 0, len(g.Hints))
+	for _, hint := range g.Hints {
+		if hint.Status != HintUsedStatus &&
+			hint.HintData != nil &&
+			g.hintAvailable(hint.HintData) {
+			result = append(result, hint)
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].HintData.ID < result[j].HintData.ID
+	})
+
+	return result
 }
 
 // LoadGames loads every JSON scenario from ./scenarios. The filename without

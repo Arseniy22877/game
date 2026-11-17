@@ -39,7 +39,9 @@ func main() {
 	mux.HandleFunc("/api/scenarios", handleScenarios)
 	mux.HandleFunc("/api/scenario", handleScenario)
 	mux.HandleFunc("/api/image", handleImage)
-
+	if err := registerGameplayRoutes(mux); err != nil {
+		log.Fatal(err)
+	}
 	server := &http.Server{
 		Addr:              ":8090",
 		Handler:           mux,
