@@ -19,7 +19,7 @@ let teams = [
     id: 1,
     name: 'Альфа',
     members: ['Алексей Иванов', 'Мария Смирнова'],
-    ready: true,
+    ready: false,
     online: false,
     submitted: false,
     bankrupt: false,
@@ -201,7 +201,7 @@ const server = http.createServer(async (req, res) => {
       id: newId,
       name: body.name || `Команда ${newId}`,
       members: body.members || ['Участник 1'],
-      ready: true,
+      ready: typeof body.ready === 'boolean' ? body.ready : false,
       online: true,
       submitted: false,
       bankrupt: false,
@@ -222,7 +222,7 @@ const server = http.createServer(async (req, res) => {
     const token = authHeader.replace(/^Bearer\s+/, '').trim();
     const team = teams.find((t) => t.token === token) || teams[0];
     if (team) {
-      team.ready = body.ready !== undefined ? body.ready : !team.ready;
+      team.ready = typeof body.ready === 'boolean' ? body.ready : !team.ready;
       broadcast('lobby_updated', { teams });
       return sendJson(res, 200, team);
     }
@@ -316,7 +316,7 @@ const server = http.createServer(async (req, res) => {
         id: 1,
         name: 'Альфа',
         members: ['Алексей Иванов', 'Мария Смирнова'],
-        ready: true,
+        ready: false,
         online: false,
         submitted: false,
         bankrupt: false,

@@ -67,9 +67,8 @@ function TeamRegistrationView({ onRegistered }: { onRegistered: () => void }) {
       });
       api.setTeamToken(res.token);
 
-      // Если нажали "Не готовы", обновляем статус на сервере
-      if (!isReady) {
-        await api.setReady({ ready: false });
+      if (isReady) {
+        await api.setReady({ ready: true });
       }
 
       onRegistered();
@@ -188,12 +187,18 @@ function TeamReadyView({ team, onUpdate }: { team: TeamSummary; onUpdate: () => 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center space-y-6">
-        <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl font-bold bg-slate-100 border border-slate-200">
-          {team.ready ? (
-            <span className="text-emerald-600">✓</span>
-          ) : (
-            <span className="text-amber-500">⏳</span>
-          )}
+        {/* Индикатор текущего статуса */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl font-bold bg-slate-100 border border-slate-200">
+            {team.ready ? (
+              <span className="text-emerald-600">✓</span>
+            ) : (
+              <span className="text-rose-500 font-bold">✕</span>
+            )}
+          </div>
+          <div className={`text-sm font-bold ${team.ready ? 'text-emerald-600' : 'text-slate-500'}`}>
+            {team.ready ? '✓ Команда готова к игре' : '✕ Команда не готова'}
+          </div>
         </div>
 
         <div>
@@ -214,22 +219,24 @@ function TeamReadyView({ team, onUpdate }: { team: TeamSummary; onUpdate: () => 
           </div>
         </div>
 
-        {/* Кнопка-переключатель статуса */}
+        {/* Кнопка-переключатель статуса:
+            Если команда НЕ готова -> кнопка «Готовы» (темная), нажатие подтверждает готовность.
+            Если команда ГОТОВА -> кнопка «Не готовы» (светлая), нажатие снимает готовность. */}
         <div>
           <button
             type="button"
             onClick={handleToggle}
             disabled={toggling}
             className={`w-full py-3.5 font-semibold rounded-2xl transition-all shadow-sm ${
-              team.ready
+              !team.ready
                 ? 'bg-slate-900 text-white hover:bg-slate-800'
                 : 'bg-white border-2 border-slate-300 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            {team.ready ? 'Готовы' : 'Не готовы'}
+            {!team.ready ? 'Готовы' : 'Не готовы'}
           </button>
           <div className="text-xs text-slate-400 mt-2">
-            {team.ready ? 'Нажмите, чтобы снять готовность' : 'Нажмите, чтобы подтвердить готовность'}
+            {!team.ready ? 'Нажмите, чтобы подтвердить готовность' : 'Нажмите, чтобы снять готовность'}
           </div>
         </div>
 
