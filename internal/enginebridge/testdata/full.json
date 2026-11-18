@@ -1,0 +1,110 @@
+{
+  "ConfigurableAttributes": [
+    {
+      "ID": 1,
+      "DefaultValue": 4,
+      "MaxValue": 10,
+      "MinValue": 1,
+      "CostPerUnit": 1
+    }
+  ],
+  "Branches": [
+    "main",
+    "side",
+    "rare"
+  ],
+  "Events": [
+    {
+      "ID": 0,
+      "Name": "Event 0",
+      "Branch": "main",
+      "BasicPower": 1,
+      "Weights": [
+        0
+      ],
+      "Iteration": 0
+    },
+    {
+      "ID": 1,
+      "Name": "Event 1",
+      "Branch": "main",
+      "BasicPower": 1,
+      "Weights": [
+        0
+      ],
+      "Iteration": 0
+    },
+    {
+      "ID": 2,
+      "Name": "Event 2",
+      "Branch": "main",
+      "BasicPower": 3,
+      "Weights": [
+        0
+      ],
+      "Iteration": 0
+    },
+    {
+      "ID": 3,
+      "Name": "Event 3",
+      "Branch": "side",
+      "BasicPower": 5,
+      "Weights": [
+        0
+      ],
+      "Iteration": 0
+    },
+    {
+      "ID": 4,
+      "Name": "Event 4",
+      "Branch": "rare",
+      "BasicPower": 1,
+      "Weights": [
+        0
+      ],
+      "Iteration": 0
+    },
+    {
+      "ID": 5,
+      "Name": "Event 5",
+      "Branch": "side",
+      "BasicPower": 5,
+      "Weights": [
+        0
+      ],
+      "Iteration": 2
+    }
+  ],
+  "OpeningEvent": 0,
+  "MinProbabilitySum": 2,
+  "StartingBudget": {
+    "InitialMoney": 17,
+    "MaxMoney": 20,
+    "InitialQP": 3
+  },
+  "Strategies": [
+    {
+      "ID": 2,
+      "Name": "Growth",
+      "Cost": 1
+    }
+  ],
+  "Hints": [
+    {
+      "ID": 3,
+      "Name": "Study",
+      "Secret": "secret",
+      "Cost": 2
+    },
+    {
+      "ID": 4,
+      "Name": "Growth study",
+      "Prerequisites": {
+        "Strategies": [
+          2
+        ]
+      },
+      "Cost": 1
+    }
+  ]
+}

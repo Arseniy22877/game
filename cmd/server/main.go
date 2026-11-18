@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,8 +14,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Arseniy22877/game/internal/enginebridge"
+	"github.com/Arseniy22877/game/internal/game"
 	"github.com/Arseniy22877/game/internal/httpapi"
 	"github.com/Arseniy22877/game/internal/store"
+	"github.com/Arseniy22877/game/internal/ws"
 )
 
 type config struct {
@@ -72,9 +76,28 @@ func run(logger *slog.Logger) error {
 	}
 	defer db.Close()
 
+	catalog, err := enginebridge.LoadCatalog(cfg.scenariosDir)
+	if err != nil {
+		return fmt.Errorf("load scenarios: %w", err)
+	}
+	logger.Info("scenarios loaded", "ids", catalog.IDs())
+	var manager *game.Manager
+	hub := ws.New(func(id int64, online bool) { manager.Presence(id, online) })
+	defer hub.Close()
+	manager, err = game.NewManager(ctx, db, catalog, hub)
+	if err != nil {
+		return fmt.Errorf("restore game: %w", err)
+	}
+	socket := hub.Handler(func(token string) (ws.Identity, bool) {
+		if subtle.ConstantTimeCompare([]byte(cfg.adminToken), []byte(token)) == 1 {
+			return ws.Identity{Role: ws.Admin}, true
+		}
+		state, err := manager.TeamState(token)
+		return ws.Identity{Role: ws.Team, TeamID: state.Team.ID}, err == nil
+	})
 	server := &http.Server{
 		Addr:              net.JoinHostPort("", cfg.port),
-		Handler:           httpapi.New(logger, cfg.webDir, cfg.scenariosDir),
+		Handler:           httpapi.NewWithSocket(logger, cfg.webDir, cfg.scenariosDir, socket),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	listener, err := net.Listen("tcp", server.Addr)
