@@ -15,7 +15,7 @@ admin=fixture-admin-token
 start() {
     container=$(docker run -d -p 127.0.0.1::8080 -v "$1:/data" -e "ADMIN_TOKEN=$admin" "$image")
     base=http://$(docker port "$container" 8080/tcp)
-    curl -fsS --retry 15 --retry-connrefused --retry-delay 1 "$base/healthz" | grep -qx ok
+    curl -fsS --retry 15 --retry-all-errors --retry-delay 1 "$base/healthz" | grep -qx ok
 }
 api() {
     curl -fsS -H "Authorization: Bearer $1" -H 'Content-Type: application/json' "$base/api/$2" "${@:3}"
@@ -24,7 +24,7 @@ start "$tmp/live"
 curl -fsS "$base/admin" | grep -q 'type="module"'
 asset=$(find scenarios -type f -name '*.jpg' | sort | sed -n '1p')
 path=${asset#scenarios/}
-curl -fsS "$base/images/${path/\/images\//\/}" > "$tmp/image"
+curl -fsS "$base/images/${path%%/*}/${asset##*/}" > "$tmp/image"
 cmp "$asset" "$tmp/image"
 api "$admin" admin/scenarios | jq -e '.scenarios | map(.id) | contains(["republic_n_scenario","republic_n_scenario_v2"])' >/dev/null
 api "$admin" admin/game -X POST >/dev/null
