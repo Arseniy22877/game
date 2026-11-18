@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Arseniy22877/game/internal/httpapi"
+	"github.com/Arseniy22877/game/internal/store"
 )
 
 type config struct {
@@ -64,6 +65,12 @@ func run(logger *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	db, err := store.Open(ctx, cfg.dbPath)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
 
 	server := &http.Server{
 		Addr:              net.JoinHostPort("", cfg.port),
