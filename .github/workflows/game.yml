@@ -1,0 +1,58 @@
+name: Game
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check Go
+        run: |
+          files=$(gofmt -l .)
+          if [[ -n "$files" ]]; then echo "$files"; exit 1; fi
+          go vet ./...
+          go test ./...
+      - name: Build and test production image
+        run: |
+          docker build -t "cu-game:$GITHUB_SHA" .
+          bash deploy/smoke.sh "cu-game:$GITHUB_SHA"
+      - name: Save verified image
+        if: github.event_name == 'push'
+        run: docker save "cu-game:$GITHUB_SHA" | gzip -1 > "$RUNNER_TEMP/game.tar.gz"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: production-image
+          path: ${{ runner.temp }}/game.tar.gz
+          retention-days: 1
+  deploy:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-24.04
+    concurrency: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-image
+      - name: Release over SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/release
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -i ~/.ssh/release "cu-deploy@$DEPLOY_HOST" \
+            "release $GITHUB_RUN_NUMBER $GITHUB_RUN_ATTEMPT $GITHUB_SHA" < game.tar.gz

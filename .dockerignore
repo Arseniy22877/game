@@ -1,0 +1,16 @@
+**
+!Dockerfile
+!go.mod
+!go.sum
+!cmd/**
+!internal/**
+!gameengine/**
+!migrations/**
+!scenarios/**
+!web/package*.json
+!web/index.html
+!web/*.config.*
+!web/tsconfig*.json
+!web/src/**
+!web/public/**
+creds.txt

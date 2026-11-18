@@ -1,0 +1,7 @@
+[Unit]
+Description=Back up the game journal
+ConditionPathExists=/opt/cu-game/data/game.db
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cu-game/backup.sh
