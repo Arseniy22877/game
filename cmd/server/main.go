@@ -92,12 +92,12 @@ func run(logger *slog.Logger) error {
 		if subtle.ConstantTimeCompare([]byte(cfg.adminToken), []byte(token)) == 1 {
 			return ws.Identity{Role: ws.Admin}, true
 		}
-		state, err := manager.TeamState(token)
-		return ws.Identity{Role: ws.Team, TeamID: state.Team.ID}, err == nil
+		id, err := manager.TeamID(token)
+		return ws.Identity{Role: ws.Team, TeamID: id}, err == nil
 	})
 	server := &http.Server{
 		Addr:              net.JoinHostPort("", cfg.port),
-		Handler:           httpapi.NewWithSocket(logger, cfg.webDir, cfg.scenariosDir, socket),
+		Handler:           httpapi.NewServer(logger, cfg.webDir, cfg.scenariosDir, socket, manager, cfg.adminToken),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	listener, err := net.Listen("tcp", server.Addr)

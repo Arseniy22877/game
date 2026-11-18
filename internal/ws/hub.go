@@ -37,7 +37,7 @@ type presence struct {
 
 type Hub struct {
 	mu         sync.Mutex
-	clients    map[*client]bool
+	clients    map[*client]bool // false while a replaced team's queued notification is draining
 	counts     map[int64]int
 	closed     bool
 	generation uint64
@@ -84,12 +84,11 @@ func (h *Hub) changed(id int64, online bool) {
 	}
 }
 
-func (h *Hub) remove(c *client) {
+func (h *Hub) detach(c *client) {
 	if !h.clients[c] {
 		return
 	}
-	delete(h.clients, c)
-	c.cancel()
+	h.clients[c] = false
 	if c.Role == Team {
 		h.counts[c.TeamID]--
 		if h.counts[c.TeamID] == 0 {
@@ -99,24 +98,41 @@ func (h *Hub) remove(c *client) {
 	}
 }
 
+func (h *Hub) remove(c *client) {
+	h.detach(c)
+	delete(h.clients, c)
+	c.cancel()
+}
+
 func (h *Hub) Online(id int64) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.counts[id] > 0
 }
-func (h *Hub) drop(id int64, all bool) {
+func (h *Hub) DropTeam(id int64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.generation++
 	for c := range h.clients {
-		if c.Role == Team && (all || c.TeamID == id) {
+		if c.Role == Team && c.TeamID == id {
 			h.remove(c)
 		}
 	}
 }
 
-func (h *Hub) DropTeam(id int64) { h.drop(id, false) }
-func (h *Hub) DropAllTeams()     { h.drop(0, true) }
+func (h *Hub) DropAllTeams() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.generation++
+	for c, active := range h.clients {
+		if active && c.Role == Team {
+			h.detach(c)
+			// The writer closes the connection after sending the queued phase change.
+			close(c.send)
+		}
+	}
+}
+
 func (h *Hub) Close() {
 	h.mu.Lock()
 	h.closed = true
@@ -135,8 +151,8 @@ func (h *Hub) broadcast(role Role, id int64, m api.WSMessage) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for c := range h.clients {
-		if role != "" && c.Role != role || id != 0 && c.TeamID != id {
+	for c, active := range h.clients {
+		if !active || role != "" && c.Role != role || id != 0 && c.TeamID != id {
 			continue
 		}
 		select {
@@ -213,7 +229,10 @@ func (h *Hub) Handler(resolve func(string) (Identity, bool)) http.Handler {
 			select {
 			case <-ctx.Done():
 				return
-			case data := <-c.send:
+			case data, ok := <-c.send:
+				if !ok {
+					return
+				}
 				deadline, stop := context.WithTimeout(ctx, 5*time.Second)
 				err = conn.Write(deadline, websocket.MessageText, data)
 				stop()

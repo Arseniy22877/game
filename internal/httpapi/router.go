@@ -10,13 +10,27 @@ import (
 	"strings"
 
 	"github.com/Arseniy22877/game/internal/api"
+	"github.com/Arseniy22877/game/internal/game"
 )
 
 func New(logger *slog.Logger, webDir, scenariosDir string) http.Handler {
 	return NewWithSocket(logger, webDir, scenariosDir, nil)
 }
 func NewWithSocket(logger *slog.Logger, webDir, scenariosDir string, socket http.Handler) http.Handler {
+	return newRouter(logger, webDir, scenariosDir, socket, nil)
+}
+
+func NewServer(logger *slog.Logger, webDir, scenariosDir string, socket http.Handler, manager *game.Manager, adminToken string) http.Handler {
+	return newRouter(logger, webDir, scenariosDir, socket, &serverAPI{logger: logger, manager: manager, adminToken: adminToken})
+}
+
+func newRouter(logger *slog.Logger, webDir, scenariosDir string, socket http.Handler, routes *serverAPI) http.Handler {
 	mux := http.NewServeMux()
+	if routes != nil {
+		routes.lobbyRoutes(mux)
+		routes.roundRoutes(mux)
+		routes.historyRoutes(mux)
+	}
 	if socket != nil {
 		mux.Handle("GET /ws", socket)
 	}
