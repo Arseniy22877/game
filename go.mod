@@ -2,7 +2,10 @@ module github.com/Arseniy22877/game
 
 go 1.24.0
 
-require modernc.org/sqlite v1.40.1
+require (
+	github.com/coder/websocket v1.8.14
+	modernc.org/sqlite v1.40.1
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

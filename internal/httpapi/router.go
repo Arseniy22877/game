@@ -13,7 +13,13 @@ import (
 )
 
 func New(logger *slog.Logger, webDir, scenariosDir string) http.Handler {
+	return NewWithSocket(logger, webDir, scenariosDir, nil)
+}
+func NewWithSocket(logger *slog.Logger, webDir, scenariosDir string, socket http.Handler) http.Handler {
 	mux := http.NewServeMux()
+	if socket != nil {
+		mux.Handle("GET /ws", socket)
+	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok"))
