@@ -294,8 +294,8 @@ func TestSetGradesReplacesAtomically(t *testing.T) {
 	game := createGame(t, s)
 	team := registerTeam(t, s, game.ID, "Команда", "token")
 	previous := []api.Grade{{Skill: api.SkillRisks, Score: 8, Comment: "Хорошая оценка рисков"}}
-	if err := s.SetGrades(ctx, game.ID, team.ID, previous); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("setting grades during an active lobby: got %v, want sql.ErrNoRows", err)
+	if err := s.SetGrades(ctx, game.ID, team.ID, previous); !errors.Is(err, ErrGameNotGradable) {
+		t.Fatalf("setting grades during an active lobby: got %v, want ErrGameNotGradable", err)
 	}
 	requireOK(t, s.StartGame(ctx, game.ID, "scenario", []byte("{}")))
 	requireOK(t, s.CloseRound(ctx, game.ID, 1, []RoundCalculation{{TeamID: team.ID}}))

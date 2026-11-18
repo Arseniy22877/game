@@ -21,7 +21,16 @@ type Instance struct {
 type DecisionError struct{ Code, Message string }
 
 func (e *DecisionError) Error() string { return e.Message }
-func (i *Instance) SetRound(r int)     { i.state.Iteration = r; i.raw = nil; i.predictions = nil }
+
+func (i *Instance) SetRound(round int) {
+	i.state.Iteration = round
+	i.state.PendingAttributes = nil
+	i.state.PendingStrategies = nil
+	i.state.PendingHints = nil
+	i.raw = nil
+	i.predictions = nil
+}
+
 func (i *Instance) Submit(d api.Decision) (api.Cost, error) {
 	next := i.state
 	invalid := func(msg string) (api.Cost, error) { return api.Cost{}, &DecisionError{api.CodeInvalidDecision, msg} }
@@ -89,6 +98,10 @@ func (i *Instance) Calculate() ([]api.Prediction, error) {
 		return nil, err
 	}
 	return i.predict()
+}
+
+func (i *Instance) Fire(ids []int) error {
+	return i.state.FireSelectedEvents(ids)
 }
 
 func (i *Instance) SkipRound() ([]api.Prediction, error) {

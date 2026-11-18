@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"net/http"
 	"slices"
 	"sync"
 
@@ -31,18 +31,24 @@ type Error struct {
 func (e *Error) Error() string { return e.Message }
 
 type team struct {
-	record   store.Team
-	instance *enginebridge.Instance
+	record            store.Team
+	instance          *enginebridge.Instance
+	bankrupt          bool
+	lastRoundBankrupt bool
+	decision          *store.DecisionRecord
+	predictions       []api.Prediction
+	history           []api.RoundEvents
 }
 
 type Manager struct {
-	mu       sync.Mutex
-	store    *store.Store
-	catalog  *enginebridge.Catalog
-	notify   Notifier
-	info     api.GameInfo
-	teams    []team
-	scenario *enginebridge.Scenario
+	mu          sync.Mutex
+	store       *store.Store
+	catalog     *enginebridge.Catalog
+	notify      Notifier
+	info        api.GameInfo
+	teams       []team
+	scenario    *enginebridge.Scenario
+	recoveryErr error
 }
 
 func NewManager(ctx context.Context, s *store.Store, catalog *enginebridge.Catalog, n Notifier) (*Manager, error) {
@@ -67,36 +73,9 @@ func (m *Manager) rebuild(ctx context.Context) error {
 	return m.replay(j)
 }
 
-func (m *Manager) replay(j store.Journal) error {
-	g := j.Game
-	var scenario *enginebridge.Scenario
-	switch g.Phase {
-	case api.PhaseLobby:
-	case api.PhaseRoundOpen, api.PhaseRoundClosed, api.PhaseFinished:
-		var err error
-		scenario, err = m.catalog.ParseSnapshot(g.ScenarioID, g.ScenarioJSON)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unknown phase %q", g.Phase)
-	}
-	teams := make([]team, 0, len(j.Teams))
-	for _, record := range j.Teams {
-		if len(record.Rounds) > 0 {
-			return fmt.Errorf("round journal replay is unavailable for team %d", record.ID)
-		}
-		t := team{record: record.Team}
-		if scenario != nil {
-			t.instance = scenario.NewInstance()
-			t.instance.SetRound(g.Round)
-		}
-		teams = append(teams, t)
-	}
-	m.teams = teams
-	m.scenario = scenario
-	m.info = gameInfo(g)
-	return nil
+func (m *Manager) rollback(ctx context.Context, cause error) error {
+	m.recoveryErr = m.rebuild(context.WithoutCancel(ctx))
+	return errors.Join(cause, m.recoveryErr)
 }
 
 func gameInfo(g store.Game) api.GameInfo {
@@ -106,17 +85,24 @@ func gameInfo(g store.Game) api.GameInfo {
 func (m *Manager) CreateGame(ctx context.Context, confirm bool) (api.GameInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.createGame(ctx, confirm)
+}
+
+func (m *Manager) createGame(ctx context.Context, confirm bool) (api.GameInfo, error) {
+	if m.recoveryErr != nil {
+		return api.GameInfo{}, m.recoveryErr
+	}
 	if !confirm && (m.info.Phase == api.PhaseRoundOpen || m.info.Phase == api.PhaseRoundClosed) {
 		return api.GameInfo{}, &Error{409, api.CodeGameInProgress, "Подтвердите завершение текущей игры"}
 	}
 	g, err := m.store.CreateGame(ctx)
 	if err != nil {
-		return api.GameInfo{}, errors.Join(err, m.rebuild(context.WithoutCancel(ctx)))
+		return api.GameInfo{}, m.rollback(ctx, err)
 	}
 	m.info = gameInfo(g)
 	m.teams = nil
 	m.scenario = nil
-	m.notify.ToAll(api.WSMessage{Type: api.WSPhaseChanged, Payload: m.info})
+	m.phaseChanged()
 	m.notify.DropAllTeams()
 	return m.info, nil
 }
@@ -126,20 +112,48 @@ func (m *Manager) GameInfo() api.GameInfo {
 	defer m.mu.Unlock()
 	return m.info
 }
+
+func (m *Manager) ReadGameInfo() (api.GameInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.info, m.recoveryErr
+}
+
 func (m *Manager) summary(t team) api.TeamSummary {
 	r := t.record
-	return api.TeamSummary{ID: r.ID, Name: r.Name, Members: append([]string{}, r.Members...), Ready: r.Ready, Online: m.notify.Online(r.ID), Bankrupt: t.instance != nil && t.instance.Bankrupt()}
+	return api.TeamSummary{
+		ID: r.ID, Name: r.Name, Members: append([]string{}, r.Members...), Ready: r.Ready,
+		Online: m.notify.Online(r.ID), Bankrupt: t.bankrupt, Submitted: t.submitted(),
+	}
 }
 
 func (m *Manager) AdminState() api.AdminState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.adminState()
+}
+
+func (m *Manager) ReadAdminState() (api.AdminState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.recoveryErr != nil {
+		return api.AdminState{}, m.recoveryErr
+	}
+	return m.adminState(), nil
+}
+
+func (m *Manager) adminState() api.AdminState {
 	dto := api.AdminState{Game: m.info, Teams: []api.AdminTeam{}}
 	for _, t := range m.teams {
-		v := api.AdminTeam{TeamSummary: m.summary(t), Token: t.record.Token, Predictions: []api.Prediction{}}
+		v := api.AdminTeam{TeamSummary: m.summary(t), Token: t.record.Token, Predictions: append([]api.Prediction{}, t.predictions...)}
 		if t.instance != nil {
-			state := t.instance.State()
+			state := t.state()
 			v.State = &state
+		}
+		if t.decision != nil {
+			decision, cost := cloneDecision(t.decision.Decision), t.decision.Cost
+			v.Decision = &decision
+			v.Cost = &cost
 		}
 		dto.Teams = append(dto.Teams, v)
 	}
@@ -149,34 +163,46 @@ func (m *Manager) AdminState() api.AdminState {
 func (m *Manager) TeamState(token string) (api.TeamStateResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, t := range m.teams {
-		if t.record.Token == token {
-			dto := api.TeamStateResponse{Game: m.info, Team: m.summary(t)}
-			if t.instance != nil {
-				state := t.instance.State()
-				dto.State = &state
-				dto.Opening = m.scenario.Opening()
-			}
-			return dto, nil
+	if m.recoveryErr != nil {
+		return api.TeamStateResponse{}, m.recoveryErr
+	}
+	t := m.teamByToken(token)
+	if t == nil {
+		return api.TeamStateResponse{}, &Error{http.StatusUnauthorized, api.CodeUnauthorized, "Неизвестный токен команды"}
+	}
+	dto := api.TeamStateResponse{Game: m.info, Team: m.summary(*t)}
+	if t.instance != nil {
+		state := t.state()
+		dto.State = &state
+		dto.Opening = m.scenario.Opening()
+	}
+	if t.decision != nil {
+		decision := cloneDecision(t.decision.Decision)
+		dto.Decision = &decision
+	}
+	return dto, nil
+}
+
+func (m *Manager) teamByToken(token string) *team {
+	if token == "" {
+		return nil
+	}
+	for i := range m.teams {
+		if m.teams[i].record.Token == token {
+			return &m.teams[i]
 		}
 	}
-	return api.TeamStateResponse{}, &Error{401, api.CodeUnauthorized, "Неизвестный токен команды"}
+	return nil
 }
 
 func (m *Manager) Presence(id int64, online bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !slices.ContainsFunc(m.teams, func(t team) bool { return t.record.ID == id }) {
+	if m.recoveryErr != nil || !slices.ContainsFunc(m.teams, func(t team) bool { return t.record.ID == id }) {
 		return
 	}
 	if m.info.Phase == api.PhaseLobby {
-		teams := []api.TeamSummary{}
-		for _, t := range m.teams {
-			teams = append(teams, m.summary(t))
-		}
-		msg := api.WSMessage{Type: api.WSLobbyUpdated, Payload: api.LobbyUpdatedPayload{Teams: teams}}
-		m.notify.ToAdmin(msg)
-		m.notify.ToTeams(msg)
+		m.notifyLobby()
 		return
 	}
 	m.notify.ToAdmin(api.WSMessage{Type: api.WSTeamOnline, Payload: api.TeamOnlinePayload{TeamID: id, Online: online}})

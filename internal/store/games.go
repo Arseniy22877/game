@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -95,25 +96,31 @@ func (s *Store) FinishGame(ctx context.Context, gameID int64, round int) error {
 		api.PhaseFinished, now(), gameID, api.PhaseRoundOpen, round)
 }
 
+// ErrGameNotGradable indicates that the team belongs to an active, unfinished game.
+var ErrGameNotGradable = errors.New("active game has not finished")
+
 // SetGrades replaces the complete set of grades for a team.
 func (s *Store) SetGrades(ctx context.Context, gameID, teamID int64, grades []api.Grade) error {
 	return transaction(ctx, s.db, func(tx *sql.Tx) error {
-		var id int64
+		var active bool
+		var phase api.Phase
 		err := tx.QueryRowContext(ctx, `
-			SELECT t.id FROM teams t JOIN games g ON g.id = t.game_id
-			WHERE t.id = ? AND g.id = ? AND (g.active = 0 OR g.phase = ?)`,
-			teamID, gameID, api.PhaseFinished).Scan(&id)
+			SELECT g.active, g.phase FROM teams t JOIN games g ON g.id = t.game_id
+			WHERE t.id = ? AND g.id = ?`, teamID, gameID).Scan(&active, &phase)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM grades WHERE team_id = ?", id); err != nil {
+		if active && phase != api.PhaseFinished {
+			return ErrGameNotGradable
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM grades WHERE team_id = ?", teamID); err != nil {
 			return err
 		}
 		timestamp := now()
 		for _, grade := range grades {
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO grades (team_id, skill, score, comment, updated_at) VALUES (?, ?, ?, ?, ?)`,
-				id, grade.Skill, grade.Score, grade.Comment, timestamp); err != nil {
+				teamID, grade.Skill, grade.Score, grade.Comment, timestamp); err != nil {
 				return err
 			}
 		}

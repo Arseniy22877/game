@@ -89,10 +89,54 @@ func TestDeliveryAndPresence(t *testing.T) {
 	if _, _, err := team2.Read(ctx); err == nil {
 		t.Fatal("drop failed")
 	}
+	replacement := dial("team")
+	expectPresence(true)
+	h.ToAll(api.WSMessage{Type: api.WSPhaseChanged})
+	h.DropAllTeams()
+	expectPresence(false)
+	_, b, err := replacement.Read(ctx)
+	var msg api.WSMessage
+	if err != nil || json.Unmarshal(b, &msg) != nil || msg.Type != api.WSPhaseChanged {
+		t.Fatal("team did not receive the phase change before losing its connection", string(b), err)
+	}
+	if _, _, err := replacement.Read(ctx); err == nil || ctx.Err() != nil {
+		t.Fatal("archived team connection did not close", err)
+	}
 	dial("team")
 	expectPresence(true)
 	h.Close()
 	expectPresence(false)
+}
+
+func TestDropAllTeamsLetsWriterDrain(t *testing.T) {
+	h := New(nil)
+	defer h.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := &client{Identity: Identity{Team, 1}, send: make(chan []byte, 2), cancel: cancel}
+	h.mu.Lock()
+	h.clients[c] = true
+	h.counts[1] = 1
+	h.mu.Unlock()
+
+	h.ToAll(api.WSMessage{Type: api.WSPhaseChanged})
+	h.DropAllTeams()
+	h.ToAll(api.WSMessage{Type: api.WSLobbyUpdated})
+	if h.Online(1) || ctx.Err() != nil {
+		t.Fatal("archived team must be offline while its writer can still drain")
+	}
+	data, ok := <-c.send
+	var msg api.WSMessage
+	if !ok || json.Unmarshal(data, &msg) != nil || msg.Type != api.WSPhaseChanged {
+		t.Fatal("archived team lost the phase change", string(data))
+	}
+	if _, ok := <-c.send; ok {
+		t.Fatal("archived team received a later notification")
+	}
+	h.Close()
+	if ctx.Err() == nil {
+		t.Fatal("hub shutdown left the archived writer running")
+	}
 }
 
 func TestFullQueueDisconnects(t *testing.T) {
