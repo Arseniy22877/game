@@ -1,0 +1,14 @@
+[Unit]
+Description=Soft skills game
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/opt/cu-game/release.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/cu-game
+ExecStart=/usr/bin/docker compose --env-file release.env up -d
+ExecStop=/usr/bin/docker compose --env-file release.env stop
+[Install]
+WantedBy=multi-user.target

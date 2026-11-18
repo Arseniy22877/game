@@ -1,0 +1,11 @@
+name: cu-game
+services:
+  game:
+    image: cu-game:${RELEASE:?missing release}
+    pull_policy: never
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /opt/cu-game/data:/data
