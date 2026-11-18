@@ -356,7 +356,53 @@ func (g *GameState) FireEvents(ids []int) error {
 		return err
 	}
 
-	// Update statuses only after all effects have been applied successfully.
+	g.finishEventRound(selectedIDs)
+	return nil
+}
+
+// FireSelectedEvents applies only the specified events, in the supplied order.
+// All selections must be available before any effects are applied. Multiple
+// events in a branch are allowed. If any step fails, the state is unchanged.
+// An empty or nil selection only extinguishes previously fired events.
+func (g *GameState) FireSelectedEvents(ids []int) error {
+	if g == nil || g.GameData == nil {
+		return errors.New("game data is nil")
+	}
+
+	selectedIDs := make([]EventId, 0, len(ids))
+	seenIDs := make(map[EventId]struct{}, len(ids))
+	for _, rawID := range ids {
+		id := EventId(rawID)
+		if _, duplicate := seenIDs[id]; duplicate {
+			return fmt.Errorf("event %d selected more than once", id)
+		}
+		event, ok := g.Events[id]
+		if !ok || event.EventData == nil {
+			return fmt.Errorf("%w: %d", ErrInvalidEventId, id)
+		}
+		if event.Status != EventNeutral || !g.eventCanOccur(event.EventData) {
+			return fmt.Errorf("%w: %d", ErrEventNotAvailable, id)
+		}
+		seenIDs[id] = struct{}{}
+		selectedIDs = append(selectedIDs, id)
+	}
+
+	// applyEventEffects clones the attribute map. The staged attributes and
+	// budget carry over to the next event, with bounds applied at each step.
+	next := *g
+	for _, id := range selectedIDs {
+		if err := next.applyEventEffects([]*GameEvent{g.Events[id].EventData}); err != nil {
+			return fmt.Errorf("apply event %d: %w", id, err)
+		}
+	}
+
+	g.Attributes = next.Attributes
+	g.Budget = next.Budget
+	g.finishEventRound(selectedIDs)
+	return nil
+}
+
+func (g *GameState) finishEventRound(selectedIDs []EventId) {
 	for id, event := range g.Events {
 		if event.Status == EventFiredStatus {
 			event.Status = EventExtinguishedStatus
@@ -368,7 +414,6 @@ func (g *GameState) FireEvents(ids []int) error {
 		event.Status = EventFiredStatus
 		g.Events[id] = event
 	}
-	return nil
 }
 
 func cloneGameDefinition(source Game) Game {
